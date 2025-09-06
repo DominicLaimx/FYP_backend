@@ -1,0 +1,11 @@
+{
+    "summary": "Check if tree is symmetric",
+    "question": "Determine if a binary tree is symmetric around its center based on its root node.",
+    "example": "Input: root = [1,2,2,3,4,4,3], Output: true; Input: root = [1,2,2,null,3,null,3], Output: false",
+    "constraint": "The number of nodes in the tree is in the range [1, 1000]. Node values range from -100 to 100.",
+    "followup": "Could you solve it both recursively and iteratively?",
+    "title": "Symmetric Tree",
+    "leetcode_url": "https://leetcode.com/problems/Symmetric-Tree/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef isSymmetric(root):\n    return checkSymmetry(root, root)\n\ndef checkSymmetry(node1, node2):\n    if not node1 and not node2:\n        return True\n    if not node1 or not node2:\n        return False\n    return (node1.val == node2.val) and checkSymmetry(node1.right, node2.left) and checkSymmetry(node1.left, node2.right)\n```\n    \n    The algorithm works by comparing the left subtree and right subtree of the root node. It uses a helper function, 'checkSymmetry()', which takes two nodes as its arguments. The base cases for this helper function are when both nodes are null, in which case the function should return true, or when one of the nodes is null, in which case the function should return false.\n\nThe function then checks whether the values of both nodes are equal and continues to call itself recursively, but with the arguments changed to evaluate the left subtree and right subtree symmetrically. If the left and right subtrees have symmetric nodes, the function will return true; otherwise, it will return false.\n\nThe recursive calls in the helper function flip the direction of traversal for both subtrees to ensure that the subtrees are compared symmetrically. In each recursive call, the appropriate child nodes are visited in opposite directions to make sure they can be properly compared.\n    "
+}

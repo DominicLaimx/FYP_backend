@@ -1,0 +1,11 @@
+{
+    "summary": "Count '1' bits in integer",
+    "question": "Write a function to count the number of '1' bits in the binary representation of an unsigned integer.",
+    "example": "Input: n = 00000000000000000000000000001011, Output: 3; Input: n = 00000000000000000000000010000000, Output: 1; Input: n = 11111111111111111111111111111101, Output: 31",
+    "constraint": "The input must be a binary string of length 32.",
+    "followup": "If repeatedly called, propose optimization.",
+    "title": "Number Of 1 Bits",
+    "leetcode_url": "https://leetcode.com/problems/Number-of-1-Bits/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef hamming_weight(n):\n    count = 0\n    while n:\n        count += n & 1\n        n >>= 1\n    return count\n```\n    \n    The algorithm for this problem is straightforward. We use a bitwise AND operation with 1 to check the rightmost bit of the input integer `n`. If the result is 1, then the rightmost bit is a '1', and we increment the `count`. We continue to check the rest of the bits by shifting `n` to the right (`>>` in C++/Python or `>>>` in Java/JavaScript, since Java/JavaScript use signed right shift) to remove the rightmost bit. The loop continues until `n` becomes 0, which means there are no more '1' bits. Finally, we return the `count` of 1 bits.\n\nNote that the '>>>=' unary operator in Java and JavaScript is used to avoid sign extension when shifting right. This ensures that the shift is done in an unsigned manner.\n    "
+}

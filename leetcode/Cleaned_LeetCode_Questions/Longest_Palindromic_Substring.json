@@ -1,0 +1,24 @@
+{
+    "summary": "Find longest palindromic substring",
+    "question": "Given a string s, return the longest palindromic substring in s.",
+    "example": {
+        "input": [
+            "s = 'babad'",
+            "s = 'cbbd'",
+            "s = 'a'",
+            "s = 'ac'"
+        ],
+        "output": [
+            "'bab' or 'aba'",
+            "'bb'",
+            "'a'",
+            "'a'"
+        ]
+    },
+    "constraint": "1 <= s.length <= 1000. String s consists of only digits and English letters.",
+    "followup": "",
+    "title": "Longest Palindromic Substring",
+    "leetcode_url": "https://leetcode.com/problems/Longest-Palindromic-Substring/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef longest_palindromic_substring(s: str) -> str:\n    n = len(s)\n    if n == 0: return \"\"\n\n    start, max_length = 0, 1\n\n    for i in range(n):\n        l, r = i, i\n\n        while r < n - 1 and s[r] == s[r + 1]:\n            r += 1\n        i = r\n\n        while l > 0 and r < n - 1 and s[l - 1] == s[r + 1]:\n            l -= 1\n            r += 1\n\n        length = r - l + 1\n        if length > max_length:\n            start, max_length = l, length\n\n    return s[start:start + max_length]\n```\n    \n    1. Initialize `start` and `maxLength` for result substring.\n2. Iterate through the given string `s` using the index `i`.\n3. For each index `i`, create two pointers `l` and `r` starting at `i`.\n4. Check if there's a consecutive sequence of identical characters, increment the right pointer `r` until the end of the sequence is reached.\n5. Update the index `i` to the current value of `r`.\n6. Expand the pointers `l` and `r` outwards to find the longest palindromic substring, checking that characters on both sides are equal.\n7. If the current length of the substring is greater than `maxLength`, update `start` and `maxLength`.\n8. Return the longest palindromic substring using the `start` and `maxLength`.\n    "
+}

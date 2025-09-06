@@ -1,0 +1,11 @@
+{
+    "summary": "Generate well-formed parentheses combinations",
+    "question": "Write a function to generate all combinations of well-formed parentheses for a given number of pairs n.",
+    "example": "Input: n = 3, Output: ['((()))', '(()())', '(())()', '()(())', '()()()']\nInput: n = 1, Output: ['()']",
+    "constraint": "1 <= n <= 8",
+    "followup": "",
+    "title": "Generate Parentheses",
+    "leetcode_url": "https://leetcode.com/problems/Generate-Parentheses/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef generate_parenthesis(n):\n    def generate_parenthesis_helper(open, close, current):\n        if open == 0 and close == 0:\n            result.append(current)\n            return\n        if open > 0:\n            generate_parenthesis_helper(open - 1, close + 1, current + '(')\n        if close > 0:\n            generate_parenthesis_helper(open, close - 1, current + ')')\n\n    result = []\n    generate_parenthesis_helper(n, 0, '')\n    return result\n```\n\n    \n    The algorithm uses a helper function called `generateParenthesisHelper` which receives four parameters: the number of open parentheses left to place, the number of close parentheses left to place, the current string that holds the generated parentheses so far, and the result list to store valid combinations.\n\nThe algorithm uses a depth-first search to construct valid combinations of parentheses. It starts with `n` open parentheses and increments the number of close parentheses as it places an open parenthesis. When the helper function has no open or close parentheses left to place, it means a valid combination is found, so it adds the combination to the result list.\n\nThe helper function recursively calls itself. If there are open parentheses left to place, it calls itself with one less open parenthesis and one more close parenthesis. If there are close parentheses left to place, it calls itself without changing the number of open parentheses and with one less close parenthesis. Finally, the current string in each case is updated with the placed open or close parenthesis.\n    "
+}

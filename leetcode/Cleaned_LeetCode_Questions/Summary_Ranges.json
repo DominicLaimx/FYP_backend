@@ -1,0 +1,11 @@
+{
+    "summary": "Generate smallest list of ranges",
+    "question": "Given a sorted, unique integer array 'nums', return the smallest sorted list of ranges that cover all numbers exactly, formatted as 'a->b' if a != b or 'a' if a == b.",
+    "example": "Input: nums = [0, 1, 2, 4, 5, 7]; Output: [\"0->2\", \"4->5\", \"7\"]\nInput: nums = [0, 2, 3, 4, 6, 8, 9]; Output: [\"0\", \"2->4\", \"6\", \"8->9\"]\nInput: nums = []; Output: []\nInput: nums = [-1]; Output: [\"-1\"]\nInput: nums = [0]; Output: [\"0\"]",
+    "constraint": "0 <= nums.length <= 20; -2^31 <= nums[i] <= 2^31 - 1; All values in nums are unique and sorted in ascending order.",
+    "followup": "",
+    "title": "Summary Ranges",
+    "leetcode_url": "https://leetcode.com/problems/Summary-Ranges/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\nfrom typing import List\n\ndef find_ranges(nums: List[int]) -> List[str]:\n    result = []\n    n = len(nums)\n    if n == 0: \n        return result\n\n    start = nums[0]\n    for i in range(1, n):\n        if nums[i] > nums[i-1] + 1:\n            if start == nums[i-1]:\n                result.append(str(start))\n            else:\n                result.append(str(start) + \"->\" + str(nums[i-1]))\n            start = nums[i]\n\n    if start == nums[n-1]:\n        result.append(str(start))\n    else:\n        result.append(str(start) + \"->\" + str(nums[n-1]))\n\n    return result\n```\n    \n    The algorithm involves iterating through the input array and using a variable named `start` to keep track of the beginning of the current range. For each element, we compare it with the previous element to check if they form a continuous range by verifying if the current element is greater than the previous element plus 1. If they don't form a continuous range, we know that the current range has ended and a new range starts at the current element. So, we add the current range to the result in the required format and update the start variable to the current element. This process continues until all elements are processed. Finally, we add the last range to the result in the required format.\n\nSince the input array is sorted and unique, this greedy approach ensures that we find the smallest sorted list of ranges that cover all the numbers in the array.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Find last word's length",
+    "question": "Given a string containing words separated by spaces, return the length of the last word. A word is defined as a maximal substring consisting of non-space characters.",
+    "example": "Input: s = 'Hello World' -> Output: 5; Input: s = '   fly me   to   the moon  ' -> Output: 4; Input: s = 'luffy is still joyboy' -> Output: 6",
+    "constraint": "1 <= s.length <= 104, s consists of only English letters and spaces, and there will be at least one word.",
+    "followup": "",
+    "title": "Length Of Last Word",
+    "leetcode_url": "https://leetcode.com/problems/Length-of-Last-Word/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef length_of_last_word(s: str) -> int:\n    length = 0\n    tail = len(s) - 1\n    while tail >= 0 and s[tail] == ' ':\n        tail -= 1\n    while tail >= 0 and s[tail] != ' ':\n        length += 1\n        tail -= 1\n    return length\n```\n    \n    The algorithm for finding the length of the last word in a string containing multiple words separated by spaces is as follows:\n\n1. Initialize variables for the length of the last word and the tail (i.e., the end) of the input string.\n2. Traverse the string in reverse order to find the start of the last word by checking if a character is a space. Skip all spaces found.\n3. Continue traversing the string in reverse order and record the length of the last word until a space is encountered or the start of the string is reached.\n4. Return the length of the last word.\n\nThis algorithm is implemented in each of the given programming languages (C++, Java, Python, and JavaScript) with the appropriate syntax and variable initialization. The functions are named `lengthOfLastWord` for C++, Java, and JavaScript, and `length_of_last_word` for Python.\n    "
+}

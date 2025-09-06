@@ -1,0 +1,11 @@
+{
+    "summary": "Find largest square area in matrix",
+    "question": "Given an m x n binary matrix filled with '0's and '1's, find the largest square containing only '1's and return its area.",
+    "example": "Example 1: Input: matrix = [[\"1\",\"0\",\"1\",\"0\",\"0\"],[\"1\",\"0\",\"1\",\"1\",\"1\"],[\"1\",\"1\",\"1\",\"1\",\"1\"],[\"1\",\"0\",\"0\",\"1\",\"0\"]] Output: 4\nExample 2: Input: matrix = [[\"0\",\"1\"],[\"1\",\"0\"]] Output: 1\nExample 3: Input: matrix = [[\"0\"]] Output: 0",
+    "constraint": "1 <= m, n <= 300. matrix[i][j] is '0' or '1'.",
+    "followup": "",
+    "title": "Maximal Square",
+    "leetcode_url": "https://leetcode.com/problems/Maximal-Square/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef maximalSquare(matrix):\n    m, n = len(matrix), len(matrix[0])\n    dp = [[0] * (n + 1) for _ in range(m + 1)]\n    maxSize = 0\n\n    for i in range(1, m + 1):\n        for j in range(1, n + 1):\n            if matrix[i - 1][j - 1] == '1':\n                dp[i][j] = min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1\n                maxSize = max(maxSize, dp[i][j])\n\n    return maxSize * maxSize\n```\n    \n    The algorithm uses dynamic programming to find the largest square containing only 1's. It starts by creating a 2D table, `dp`, where `dp[i][j]` represents the size of the largest square ending at position (i, j) in the input matrix. The dimensions of `dp` are m+1 and n+1 to accommodate zero-indexing, and all elements are initialized to zero. \n\nThe algorithm iterates through each element in the input matrix. If the current element is 1, it sets the corresponding entry in `dp` to the minimum of the neighboring `dp` values (i.e., the values at top, left, and top-left) plus 1, which represents the size of the current square. The maxSize variable keeps track of the current largest square size, and at the end, the area of the largest square is returned by squaring maxSize.\n    "
+}

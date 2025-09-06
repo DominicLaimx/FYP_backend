@@ -1,0 +1,11 @@
+{
+    "summary": "Find majority element in array",
+    "question": "Determine the element that appears more than \u230an / 2\u230b times in an array of size n, assuming it always exists.",
+    "example": "Input: nums = [3,2,3], Output: 3; Input: nums = [2,2,1,1,1,2,2], Output: 2",
+    "constraint": "1 <= n <= 50000; -2^31 <= nums[i] <= 2^31 - 1; n == nums.length",
+    "followup": "Could the solution be achieved in linear time and O(1) space?",
+    "title": "Majority Element",
+    "leetcode_url": "https://leetcode.com/problems/Majority-Element/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef majority_element(nums):\n    count = 0\n    candidate = None\n\n    for num in nums:\n        if count == 0:\n            candidate = num\n        count += (num == candidate) - (num != candidate)\n\n    return candidate\n```\n    \n    The algorithm used here is called the Boyer-Moore Majority Vote algorithm. It works by initializing a candidate element and a count. Then, we iterate through the given array. If the count is 0, we set the candidate to the current element in the array. Then we update the count by adding 1 if the current element is equal to the candidate, or subtracting 1 otherwise. At the end of the iteration, the candidate will have the majority element.\n\nThe algorithm works because if there is a majority element, it will always appear more than the sum of all other elements, so the count will not be 0 at the end.\n    "
+}

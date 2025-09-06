@@ -1,0 +1,11 @@
+{
+    "summary": "Reverse bits of 32-bit integer",
+    "question": "Given a 32-bit unsigned integer, reverse its binary representation and return the resulting integer.",
+    "example": "Input: n = 00000010100101000001111010011100\nOutput: 964176192 (00111001011110000010100101000000)\nInput: n = 11111111111111111111111111111101\nOutput: 3221225471 (10111111111111111111111111111111)",
+    "constraint": "Input is a binary string of length 32.",
+    "followup": "How to optimize if called frequently?",
+    "title": "Reverse Bits",
+    "leetcode_url": "https://leetcode.com/problems/Reverse-Bits/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef reverse_bits(n: int) -> int:\n    res = 0\n    for _ in range(32):\n        res <<= 1\n        res |= n & 1\n        n >>= 1\n    return res\n```\n    \n    The algorithm iterates through all 32 bits of the given unsigned 32-bit integer, and for each bit, it shifts the result variable `res` one position to the left, and then performs a bitwise OR with the given number `n` ANDed with 1. This operation adds the least significant bit of `n` to the most significant bit of `res`. Then, the given number `n` is shifted one position to the right. The process is repeated for all 32 bits, and in each step, the result variable `res` accumulates the reversed bits of the input number.\n    "
+}

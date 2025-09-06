@@ -1,0 +1,11 @@
+{
+    "summary": "Determine if a number is happy",
+    "question": "Write an algorithm to check if a number n is a happy number by iterating the sum of the squares of its digits until reaching 1 or entering an endless cycle.",
+    "example": "Input: n = 19, Output: true (Explanation: 1^2 + 9^2 = 82 -> 8^2 + 2^2 = 68 -> 6^2 + 8^2 = 100 -> 1^2 + 0^2 + 0^2 = 1); Input: n = 2, Output: false.",
+    "constraint": "1 <= n <= 2^31 - 1",
+    "followup": "",
+    "title": "Happy Number",
+    "leetcode_url": "https://leetcode.com/problems/Happy-Number/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef get_next(n):\n    sum = 0\n    while n > 0:\n        digit = n % 10\n        sum += digit * digit\n        n //= 10\n    return sum\n\ndef is_happy(n):\n    slow, fast = n, get_next(n)\n    while fast != 1 and slow != fast:\n        slow = get_next(slow)\n        fast = get_next(get_next(fast))\n    return fast == 1\n```\n    \n    The algorithm to determine if a number is happy repeatedly performs the sum of the squares of its digits. We can use the slow and fast pointer method (also called the Floyd's cycle-finding algorithm). In this method, we have two pointers (`slow` and `fast`), both initially pointing to the input number `n`. In each iteration, the `slow` pointer moves to the next number in the sequence (by calling `getNext()`) while the `fast` pointer moves to the next of next number in the sequence. If at any point, we find that the `fast` pointer becomes 1, it implies that the number is a happy number. If the `slow` and `fast` pointers become equal and it is not 1, it implies that there is a cycle and the number is not a happy number.\n\n`getNext(n)` function calculates the next number in the sequence by summing the squares of the digits of the current number `n`. This function is called in the main `isHappy(n)` function for updating `slow` and `fast` pointers.\n    "
+}

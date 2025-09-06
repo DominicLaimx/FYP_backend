@@ -1,0 +1,11 @@
+{
+    "summary": "Calculate x raised to power n",
+    "question": "Implement a function pow(x, n) to calculate x raised to the power n.",
+    "example": "Example 1: Input: x=2.00000, n=10 Output: 1024.00000\nExample 2: Input: x=2.10000, n=3 Output: 9.26100\nExample 3: Input: x=2.00000, n=-2 Output: 0.25000",
+    "constraint": "-100.0 < x < 100.0, -2^31 <= n <= 2^31 - 1, -10^4 <= x^n <= 10^4",
+    "followup": "",
+    "title": "Pow(X, N)",
+    "leetcode_url": "https://leetcode.com/problems/Pow(x,-n)/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef myPow(x: float, n: int) -> float:\n    if n == 0:\n        return 1\n    if n < 0:\n        x = 1 / x\n        n = -n\n    result = 1\n    currentProduct = x\n    i = n\n    while i:\n        if i % 2 == 1:\n            result *= currentProduct\n        currentProduct *= currentProduct\n        i //= 2\n    return result\n```\n    \n    The algorithm uses the binary exponentiation technique, which is a faster method of calculating x^n compared to the naive approach. It relies on the process of repeatedly multiplying the current product by itself and updating it after each iteration. The loop iterates through the bits of the exponent n, from the least significant to the most significant. If the current bit of n is 1, the result is multiplied by the current product. At the end of the loop, the current product is updated by squaring it. This process continues until all bits of the exponent have been processed.\n\nThe time complexity of the algorithm is O(log(n)) because the loop iterates through the bits of n, and the number of bits in n is proportional to the logarithm of n. The space complexity is O(1), as the space used by the temporary variables does not depend on the size of n.\n    "
+}

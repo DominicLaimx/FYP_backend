@@ -1,0 +1,4 @@
+{
+    "appService.defaultWebAppToDeploy": "/subscriptions/f1b397b2-cccd-4f51-a034-8870bc9e81e9/resourceGroups/AIView/providers/Microsoft.Web/sites/aiview-backend",
+    "appService.deploySubpath": "."
+}

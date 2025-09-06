@@ -1,0 +1,11 @@
+{
+    "summary": "Check array jump reachability",
+    "question": "Determine if starting at the first index, you can reach the last index given each array element indicates maximum jump length at that position.",
+    "example": "Input: nums = [2,3,1,1,4], Output: true; Input: nums = [3,2,1,0,4], Output: false",
+    "constraint": "1 <= nums.length <= 10^4, 0 <= nums[i] <= 10^5",
+    "followup": "",
+    "title": "Jump Game",
+    "leetcode_url": "https://leetcode.com/problems/Jump-Game/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef canJump(nums):\n    max_reach = 0\n    for i, num in enumerate(nums):\n        if i > max_reach:\n            return False\n        max_reach = max(max_reach, i + num)\n    return True\n```\n    \n    The algorithm iterates through the `nums` array, keeping track of the maximum reachable index in `maxReach`. In each iteration, it compares the current index `i` with `maxReach`. If `i` is greater than `maxReach`, it means that the last index cannot be reached. Otherwise, it updates the `maxReach` by taking the maximum value between the current `maxReach` and the sum of the current index `i` and the value of `nums[i]`. If the end of iteration is reached, it means that the last index can be reached, so the function returns true.\n    "
+}

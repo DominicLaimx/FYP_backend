@@ -1,0 +1,11 @@
+{
+    "summary": "Remove duplicates from sorted list",
+    "question": "Given the head of a sorted linked list, delete all nodes that have duplicate numbers, leaving only distinct numbers. Return the modified sorted linked list.",
+    "example": "Input: head = [1,2,3,3,4,4,5]; Output: [1,2,5]. Input: head = [1,1,1,2,3]; Output: [2,3].",
+    "constraint": "The number of nodes in the list is in the range [0, 300]. Node values range from -100 to 100. The linked list is guaranteed to be sorted in ascending order.",
+    "followup": "",
+    "title": "Remove Duplicates From Sorted List Ii",
+    "leetcode_url": "https://leetcode.com/problems/Remove-Duplicates-from-Sorted-List-II/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass ListNode:\n    def __init__(self, x):\n        self.val = x\n        self.next = None\n\ndef deleteDuplicates(head):\n    dummy = ListNode(0)\n    dummy.next = head\n    prev, curr = dummy, head\n    while curr:\n        while curr.next and curr.val == curr.next.val:\n            curr = curr.next\n        if prev.next == curr:\n            prev = prev.next\n        else:\n            prev.next = curr.next\n        curr = curr.next\n    return dummy.next\n```\n    \n    The algorithm uses a dummy node to simplify the handling of the head node of the linked list. We declare two pointers: `prev` and `curr` which are pointers to the previous and current nodes, respectively. \n\nThe algorithm iterates through the list with the current pointer. If the current node's value is equal to the next node's value, we continue moving the current pointer along the duplicate values. Once we reach the end of duplicates, we check if the previous node's next pointer is pointing to the current node. If it is, it means there were no duplicates (prev and curr are consecutive), so we move the `prev` pointer to the current node. Otherwise, we set `prev.next` to `curr.next` to skip the duplicates. \n\nFinally, we move the current pointer to the next node, and repeat the process. The resulting list will have all duplicates removed, and the changes will persist as the dummy node is used to reference the head of the modified list.\n    "
+}

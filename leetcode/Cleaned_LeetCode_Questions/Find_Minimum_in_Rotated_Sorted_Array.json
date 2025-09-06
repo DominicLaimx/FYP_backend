@@ -1,0 +1,11 @@
+{
+    "summary": "Find minimum in rotated array",
+    "question": "Given a sorted and rotated array of unique elements, return the minimum element in O(log n) time.",
+    "example": "Input: nums = [3,4,5,1,2], Output: 1; Input: nums = [4,5,6,7,0,1,2], Output: 0; Input: nums = [11,13,15,17], Output: 11",
+    "constraint": "1 <= n <= 5000; -5000 <= nums[i] <= 5000; All integers are unique; Array is sorted and rotated 1 to n times.",
+    "followup": "",
+    "title": "Find Minimum In Rotated Sorted Array",
+    "leetcode_url": "https://leetcode.com/problems/Find-Minimum-in-Rotated-Sorted-Array/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef find_min(nums):\n    left, right = 0, len(nums) - 1\n\n    while left < right:\n        mid = left + (right - left) // 2\n        if nums[mid] > nums[right]:\n            left = mid + 1\n        else:\n            right = mid\n    return nums[left]\n```\n    \n    The algorithm uses a binary search approach to find the minimum element in the sorted rotated array. Initially, pointers `left` and `right` are set to the start and end of the array. The midpoint `mid` is calculated as the average of `left` and `right`. The main idea is that whenever `nums[mid]` is greater than `nums[right]`, the minimum element must be in the right half of the array; otherwise, we search in the left half. This ensures that the algorithm runs in O(log n) time, as the search space is reduced by half each iteration. When `left` and `right` meet, the minimum element is found at `left`.\n    "
+}

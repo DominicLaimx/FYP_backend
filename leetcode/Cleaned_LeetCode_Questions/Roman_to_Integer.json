@@ -1,0 +1,11 @@
+{
+    "summary": "Convert Roman numeral to integer",
+    "question": "Given a Roman numeral string, convert it to its integer equivalent.",
+    "example": "Input: s = 'III' Output: 3; Input: s = 'IV' Output: 4; Input: s = 'IX' Output: 9; Input: s = 'LVIII' Output: 58 (L=50, V=5, III=3); Input: s = 'MCMXCIV' Output: 1994 (M=1000, CM=900, XC=90, IV=4)",
+    "constraint": "1 <= s.length <= 15; s contains only the characters ('I', 'V', 'X', 'L', 'C', 'D', 'M'); s is guaranteed to be a valid Roman numeral in the range [1, 3999].",
+    "followup": "",
+    "title": "Roman To Integer",
+    "leetcode_url": "https://leetcode.com/problems/Roman-to-Integer/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef roman_to_int(s):\n    roman_values = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}\n    total = 0\n    prev_value = 0\n    \n    for c in s:\n        current_value = roman_values[c]\n        if current_value > prev_value:\n            total += current_value - 2 * prev_value\n        else:\n            total += current_value\n        prev_value = current_value\n\n    return total\n```\n\n    \n    The algorithm iterates through the input string, which represents the Roman numeral. At each iteration, the character is converted to its corresponding integer value using a hash map. Then, the value is added to the total. However, if the current value is greater than the previous value, it means that we need to subtract the previous value from the current value (while considering that the previous value has already been added once). To do this, we add to the total the current value minus 2 times the previous value. Finally, the previous value is updated, and the loop continues. After the loop finishes, the total gives us the integer value equivalent to the Roman numeral.\n    "
+}

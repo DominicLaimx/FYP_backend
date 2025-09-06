@@ -1,0 +1,11 @@
+{
+    "summary": "Remove nth node from end",
+    "question": "Given the head of a linked list, remove the nth node from the end of the list and return its head.",
+    "example": "Input: head = [1,2,3,4,5], n = 2; Output: [1,2,3,5]. Input: head = [1], n = 1; Output: []. Input: head = [1,2], n = 1; Output: [1].",
+    "constraint": "1 <= sz <= 30, 0 <= Node.val <= 100, 1 <= n <= sz",
+    "followup": "Could you do this in one pass?",
+    "title": "Remove Nth Node From End Of List",
+    "leetcode_url": "https://leetcode.com/problems/Remove-Nth-Node-From-End-of-List/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n\ndef removeNthFromEnd(head, n):\n    first = head\n    second = head\n    \n    for i in range(n):\n        first = first.next\n    \n    if not first:\n        head = head.next\n        return head\n    \n    while first.next:\n        first = first.next\n        second = second.next\n    \n    second.next = second.next.next\n    \n    return head\n```\n    \n    The algorithm uses two pointers, first and second. The first pointer traverses the list, moving n steps ahead of the second pointer. If the first pointer reaches the end of the list, then the head is updated, and the second pointer becomes the new head. Otherwise, the second pointer is moved along with the first pointer until the first pointer is one position before the last item. Then, the nth node from the end of the list is skipped by updating the next pointer of the second pointer. Finally, the head of the updated list is returned.\n    "
+}

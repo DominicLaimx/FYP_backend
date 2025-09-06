@@ -1,0 +1,11 @@
+{
+    "summary": "Check nearby duplicate indices",
+    "question": "Determine if an integer array contains two distinct indices i and j such that nums[i] == nums[j] and abs(i - j) <= k.",
+    "example": "Input: nums = [1,2,3,1], k = 3; Output: true. Input: nums = [1,0,1,1], k = 1; Output: true. Input: nums = [1,2,3,1,2,3], k = 2; Output: false.",
+    "constraint": "1 <= nums.length <= 10^5; -10^9 <= nums[i] <= 10^9; 0 <= k <= 10^5",
+    "followup": "",
+    "title": "Contains Duplicate Ii",
+    "leetcode_url": "https://leetcode.com/problems/Contains-Duplicate-II/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef containsNearbyDuplicate(nums, k):\n    value_index_map = {}\n    for i, num in enumerate(nums):\n        if num in value_index_map and i - value_index_map[num] <= k:\n            return True\n        value_index_map[num] = i\n    return False\n```\n    \n    The algorithm utilizes a Hashtable, in which we store the integer value present in the array as the key and its latest index position as the value. For each element in the array, we first check if the current number is already in the Hashtable. If it is, we also check if the difference between the current index and the latest index stored in the Hashtable is less than or equal to k. If both conditions are met, we return `true` because there are two repeating integers having an index difference less than or equal to k. Otherwise, we add the number along with its latest index to the Hashtable and continue with the next element. If the loop finishes without finding such a pair, we return `false`.\n\nNote: The algorithm's time complexity is O(n), where n is the length of the input array, and the space complexity is O(min(n, k)).\n    "
+}

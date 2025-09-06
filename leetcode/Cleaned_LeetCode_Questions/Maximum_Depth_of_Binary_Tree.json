@@ -1,0 +1,11 @@
+{
+    "summary": "Find maximum depth of binary tree",
+    "question": "Given the root of a binary tree, return its maximum depth, defined as the number of nodes along the longest path from the root to the farthest leaf node.",
+    "example": "Input: root = [3,9,20,null,null,15,7]; Output: 3\nInput: root = [1,null,2]; Output: 2\nInput: root = []; Output: 0\nInput: root = [0]; Output: 1",
+    "constraint": "The number of nodes in the tree is in the range [0, 10^4]. Node values are in the range [-100, 100].",
+    "followup": "",
+    "title": "Maximum Depth Of Binary Tree",
+    "leetcode_url": "https://leetcode.com/problems/Maximum-Depth-of-Binary-Tree/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef maxDepth(root):\n    if root is None:\n        return 0\n    return 1 + max(maxDepth(root.left), maxDepth(root.right))\n```\n    \n    The algorithm is a simple recursive traversal of the binary tree. We start from the root, and for each node, we calculate the maximum depth of its left and right subtrees. We return the maximum of these two depths plus 1 (for the current node). If the node is null, we return a depth of 0 since this path doesn't exist. This way, we traverse all potential paths in the tree and return the longest one.\n    "
+}

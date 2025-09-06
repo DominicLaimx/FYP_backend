@@ -1,0 +1,11 @@
+{
+    "summary": "Binary tree level order traversal",
+    "question": "Return the level order traversal of a binary tree's nodes' values, from left to right by each level.",
+    "example": "Input: root = [3,9,20,null,null,15,7]\nOutput: [[3],[9,20],[15,7]]\nInput: root = [1]\nOutput: [[1]]\nInput: root = []\nOutput: []",
+    "constraint": "The number of nodes in the tree is in the range [0, 2000]. Node values are in the range [-1000, 1000].",
+    "followup": "",
+    "title": "Binary Tree Level Order Traversal",
+    "leetcode_url": "https://leetcode.com/problems/Binary-Tree-Level-Order-Traversal/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef levelOrder(root):\n    if not root:\n        return []\n\n    result = []\n    queue = [root]\n\n    while queue:\n        level = []\n        for i in range(len(queue)):\n            node = queue.pop(0)\n\n            if node.left:\n                queue.append(node.left)\n\n            if node.right:\n                queue.append(node.right)\n\n            level.append(node.val)\n\n        result.append(level)\n\n    return result\n```\n\n    \n    The algorithm for level order traversal uses a Breadth-First Search approach. We use a queue to traverse the tree level by level.\n1. Initialize an empty result list.\n2. If the root is empty, return the empty result list.\n3. Create a queue, and enqueue the root element.\n4. Enter a loop while the queue is not empty.\n   - Initialize an empty level list.\n   - Get the number of elements at the current level by using the queue's size.\n   - For each element at the current level, do the following:\n     -- Dequeue the element, and add its value to the level list.\n     -- Enqueue the left child of the dequeued element (if it exists).\n     -- Enqueue the right child of the dequeued element (if it exists).\n   - Add the level list to the result list.\n5. Return the resulting list of lists.\n    "
+}

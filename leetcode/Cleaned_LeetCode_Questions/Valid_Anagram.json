@@ -1,0 +1,11 @@
+{
+    "summary": "Check if strings are anagrams",
+    "question": "Given two strings s and t, determine if t is an anagram of s, returning true if they are and false otherwise.",
+    "example": "Example 1: Input: s = 'anagram', t = 'nagaram' Output: true Example 2: Input: s = 'rat', t = 'car' Output: false",
+    "constraint": "1 <= s.length, t.length <= 5 * 10^4. Both strings consist of lowercase English letters.",
+    "followup": "What if the inputs contain Unicode characters? How would you adapt your solution to such a case?",
+    "title": "Valid Anagram",
+    "leetcode_url": "https://leetcode.com/problems/Valid-Anagram/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef is_anagram(s, t):\n    if len(s) != len(t):\n        return False\n\n    counts = {}\n    for c in s:\n        if c in counts:\n            counts[c] += 1\n        else:\n            counts[c] = 1\n\n    for c in t:\n        if c not in counts or counts[c] == 0:\n            return False\n        counts[c] -= 1\n\n    return True\n```\n    \n    The algorithm first checks if the two input strings have the same length. If they do not, it returns `false`, because an anagram of a string would have the same length as the original string.\n\nThen, the algorithm initializes a hash table to store the frequency of each character in the string `s`. It iterates through the string `s`, and for each character, it increments the corresponding frequency count in the hash table.\n\nIt then iterates through the string `t`. For each character in `t`, it checks if the frequency count of that character in the hash table is greater than 0. If it is not, that means the character either wasn't in the string `s`, or has been used up already, so the function returns `false`. Otherwise, it decrements the frequency count for the current character in the hash table.\n\nFinally, if the function has not yet returned `false`, that means that the two strings are anagrams and the function returns `true`.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Reverse segment in linked list",
+    "question": "Reverse nodes in a singly linked list between positions left and right and return the modified list.",
+    "example": "Input: head = [1,2,3,4,5], left = 2, right = 4; Output: [1,4,3,2,5]\nInput: head = [5], left = 1, right = 1; Output: [5]",
+    "constraint": "1 <= n <= 500, -500 <= Node.val <= 500, 1 <= left <= right <= n",
+    "followup": "Could you do it in one pass?",
+    "title": "Reverse Linked List Ii",
+    "leetcode_url": "https://leetcode.com/problems/Reverse-Linked-List-II/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef reverseBetween(self, head: Optional[ListNode], left: int, right: int) -> Optional[ListNode]:\n    if not head or left == right:\n        return head\n    dummy = ListNode(0)\n    dummy.next = head\n    pre = dummy\n    for _ in range(left - 1):\n        pre = pre.next\n    cur = pre.next\n    for _ in range(left, right):\n        t = cur.next\n        cur.next = t.next\n        t.next = pre.next\n        pre.next = t\n    return dummy.next\n```\n    \n    The algorithm creates a dummy node and connects it to the head of the linked list. It then iterates through the list, reversing the nodes from position `left` to `right`. It maintains pointers `pre` and `cur` to accomplish this. During each iteration, it temporarily stores the next node using a pointer `t`, then reverses the connections between the nodes.\n\nThis process is repeated for all languages; the only differences in implementation are syntax-related. \n\nIn C++, use pointers and \"->\" to access the next node. In Java and Python, we use dot notation to access the next attribute. In JavaScript, we also use dot notation and \"===\" for equality comparison between left and right.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Add two numbers as linked lists",
+    "question": "Given two linked lists representing non-negative integers in reverse order, add the two numbers and return the sum as a linked list.",
+    "example": "Input: l1 = [2,4,3], l2 = [5,6,4]; Output: [7,0,8]. Input: l1 = [0], l2 = [0]; Output: [0]. Input: l1 = [9,9,9,9,9,9,9], l2 = [9,9,9,9]; Output: [8,9,9,9,0,0,0,1].",
+    "constraint": "Each linked list has 1-100 nodes. Node values are in range [0, 9]. Lists do not contain leading zeros.",
+    "followup": "",
+    "title": "Add Two Numbers",
+    "leetcode_url": "https://leetcode.com/problems/Add-Two-Numbers/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n\ndef addTwoNumbers(l1, l2):\n    dummy = ListNode(0)\n    current = dummy\n    carry = 0\n\n    while l1 or l2 or carry:\n        sum_val = (l1.val if l1 else 0) + (l2.val if l2 else 0) + carry\n        carry = sum_val // 10\n        current.next = ListNode(sum_val % 10)\n        current = current.next\n\n        if l1: l1 = l1.next\n        if l2: l2 = l2.next\n\n    return dummy.next\n```\n    \n    1. Initialize a dummy ListNode with a value of 0.\n2. Set current to that dummy ListNode, and set carry to 0.\n3. Iterate over the list nodes of l1 and l2, as well as the carry, in a while loop until all are null or 0.\n4. Calculate the sum of the node values and carry, store the carry for the next iteration, and store the value % 10 in a new ListNode connected to the current ListNode.\n5. Shift the current ListNode, l1, and l2 to the next node if available.\n6. Return the next of the dummy ListNode as a result.\n    "
+}

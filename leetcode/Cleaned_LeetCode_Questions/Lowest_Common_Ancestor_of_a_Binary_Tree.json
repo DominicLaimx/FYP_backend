@@ -1,0 +1,11 @@
+{
+    "summary": "Find LCA of two nodes",
+    "question": "Determine the lowest common ancestor of two given nodes in a binary tree, where the ancestor is the lowest node that has both nodes as descendants (possibly including itself).",
+    "example": "Input: root = [3,5,1,6,2,0,8,null,null,7,4], p = 5, q = 1; Output: 3. Input: root = [3,5,1,6,2,0,8,null,null,7,4], p = 5, q = 4; Output: 5.",
+    "constraint": "The number of nodes in the tree ranges from 2 to 10^5. Node values are unique and in the range [-10^9, 10^9]. Both 'p' and 'q' exist in the tree, and p != q.",
+    "followup": "",
+    "title": "Lowest Common Ancestor Of A Binary Tree",
+    "leetcode_url": "https://leetcode.com/problems/Lowest-Common-Ancestor-of-a-Binary-Tree/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef lowestCommonAncestor(root, p, q):\n    if not root or root == p or root == q:\n        return root\n    left = lowestCommonAncestor(root.left, p, q)\n    right = lowestCommonAncestor(root.right, p, q)\n    return right if left is None else (left if right is None else root)\n```\n\n    \n    The algorithm is a recursive depth-first search on the binary tree. It starts from the root and traverses the tree until it finds either of the two nodes, p or q. When it finds one of the nodes, it returns that node up the recursion chain. When both left and right subtrees have returned a non-null value, it means the current node is the lowest common ancestor, because both p and q have been found below the current node. Else, if either the left or the right subtree returns a non-null value, the function returns that value, signaling up the recursion chain that a target node has been found.\n    "
+}

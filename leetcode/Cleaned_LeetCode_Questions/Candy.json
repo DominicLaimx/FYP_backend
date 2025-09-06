@@ -1,0 +1,11 @@
+{
+    "summary": "Distribute candies based on ratings",
+    "question": "Find the minimum number of candies required to distribute among children such that each child has at least one candy and children with higher ratings get more candies than their neighbors.",
+    "example": "Input: ratings = [1,0,2]\nOutput: 5\nExplanation: Allocate candies as [2,1,2].\nInput: ratings = [1,2,2]\nOutput: 4\nExplanation: Allocate candies as [1,2,1].",
+    "constraint": "1 <= n == ratings.length <= 2 * 10^4; 0 <= ratings[i] <= 2 * 10^4",
+    "followup": "",
+    "title": "Candy",
+    "leetcode_url": "https://leetcode.com/problems/Candy/",
+    "difficulty": "Hard",
+    "starter_code": "\n    ```python\ndef min_candies(ratings):\n    n = len(ratings)\n    candies = [1] * n\n\n    for i in range(1, n):\n        if ratings[i] > ratings[i - 1]:\n            candies[i] = candies[i - 1] + 1\n\n    for i in range(n - 2, -1, -1):\n        if ratings[i] > ratings[i + 1]:\n            candies[i] = max(candies[i], candies[i + 1] + 1)\n\n    return sum(candies)\n```\n    \n    The algorithm takes the following steps to find the minimum number of candies needed to be distributed among the children:\n1. Initialize an array or vector 'candies' with the same length as ratings and set all its elements to 1 as every child will have at least 1 candy.\n2. Iterate through the ratings array from the second child to the last child. If the rating of the current child is more than the rating of the previous child, update the candies for the current child as candies of the previous child plus 1.\n3. Now iterate through the ratings array from the second last child to the first child. If the rating of the current child is more than the rating of the next child, update the candies for the current child as maximum between the candies the child already holds and candies of the next child plus 1.\n4. Compute the sum of candies in the candies array or vector.\n5. Return the total number of candies needed.\n\nThis algorithm ensures that we give the proper number of candies to the children based on both their neighbors while also minimizing the total candies used.\n    "
+}

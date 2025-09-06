@@ -1,0 +1,11 @@
+{
+    "summary": "Bitwise AND for integer range",
+    "question": "Compute the bitwise AND of all integers in the range [left, right] inclusive.",
+    "example": "Example 1: Input: left = 5, right = 7 Output: 4; Example 2: Input: left = 0, right = 0 Output: 0; Example 3: Input: left = 1, right = 2147483647 Output: 0",
+    "constraint": "0 <= left <= right <= 2^31 - 1",
+    "followup": "",
+    "title": "Bitwise And Of Numbers Range",
+    "leetcode_url": "https://leetcode.com/problems/Bitwise-AND-of-Numbers-Range/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef range_bitwise_and(left: int, right: int) -> int:\n    shift = 0\n    while left != right:\n        left >>= 1\n        right >>= 1\n        shift += 1\n    return left << shift\n```\n    \n    The algorithm works by performing a bitwise right shift on both the left and right edge of the range until both numbers become equal. This is done because the common bits to the left of the different bits are the bits that will survive the AND operation for all numbers in the range.\n\nSince we right shifted x times, we perform a left shift x times on the equal numbers to restore the original position of the bits. As a result, we get the final bitwise AND of all the numbers in the range. This algorithm has a complexity of O(log N) due to the bitwise manipulation.\n    "
+}

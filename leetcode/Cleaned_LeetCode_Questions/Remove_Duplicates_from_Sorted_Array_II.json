@@ -1,0 +1,11 @@
+{
+    "summary": "Remove duplicates in sorted array",
+    "question": "Modify the input sorted array in-place to ensure each unique element appears at most twice, while maintaining the relative order, and return the new length of the modified array.",
+    "example": "Input: nums = [1,1,1,2,2,3]\nOutput: k = 5, nums = [1,1,2,2,3,_]\n\nInput: nums = [0,0,1,1,1,1,2,3,3]\nOutput: k = 7, nums = [0,0,1,1,2,3,3,_,_]",
+    "constraint": "1 <= nums.length <= 30000, -10^4 <= nums[i] <= 10^4, nums is sorted in non-decreasing order, and solution must use O(1) extra memory.",
+    "followup": "",
+    "title": "Remove Duplicates From Sorted Array Ii",
+    "leetcode_url": "https://leetcode.com/problems/Remove-Duplicates-from-Sorted-Array-II/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef remove_duplicates(nums):\n    i = 0\n    for num in nums:\n        if i < 2 or num > nums[i - 2]:\n            nums[i] = num\n            i += 1\n    return i\n```\n    \n    The algorithm uses a two-pointer technique. The variable `i` represents the pointer to the position in the array where the next unique element will be placed. For each element in the input array, we check if either `i < 2` (meaning we haven't encountered 2 unique elements yet) or the current element (`num`) is greater than the element in the array at index `i - 2` (this condition ensures that the current element appears at most twice in the array). If either of these conditions are true, we place the current element at index `i` and increment `i`. The function returns the value of `i` at the end, which represents the length of the modified array after removing duplicates.\n    "
+}

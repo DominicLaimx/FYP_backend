@@ -1,0 +1,11 @@
+{
+    "summary": "Rotate linked list right k steps",
+    "question": "Given the head of a linked list, rotate it to the right by k places.",
+    "example": "Input: head = [1,2,3,4,5], k = 2; Output: [4,5,1,2,3]. Input: head = [0,1,2], k = 4; Output: [2,0,1].",
+    "constraint": "The number of nodes in the list is in the range [0, 500]. Node values are in the range [-100, 100]. k is in the range [0, 2 * 10^9].",
+    "followup": "",
+    "title": "Rotate List",
+    "leetcode_url": "https://leetcode.com/problems/Rotate-List/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n\ndef rotateRight(head, k):\n    if not head or not head.next or k == 0:\n        return head\n\n    current = head\n    length = 1\n    while current.next:\n        length += 1\n        current = current.next\n    current.next = head\n    k = length - k % length\n\n    while k:\n        k -= 1\n        current = current.next\n    head = current.next\n    current.next = None\n\n    return head\n```\n    \n    The algorithm first finds the length of the linked list by iterating through it. It then calculates the actual number of rotations needed, considering that if `k` is equal to or larger than the length of the linked list, the same rotation will be repeated. To minimize the rotations, we find the remainder of `k` divided by the length of the list.\n\nNext, we connect the tail of the linked list to the head, forming a circular linked list. Following this, we iterate again through the list and perform the rotations by updating the pointers of the new head and tail. Finally, we break the cycle in the list and return the new head.\n    "
+}

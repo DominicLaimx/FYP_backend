@@ -1,0 +1,11 @@
+{
+    "summary": "Find unique element in array",
+    "question": "Find the single element in an integer array where every other element appears three times. Ensure linear runtime complexity and constant extra space usage.",
+    "example": "Input: nums = [2,2,3,2]\nOutput: 3\nInput: nums = [0,1,0,1,0,1,99]\nOutput: 99",
+    "constraint": "1 <= nums.length <= 3 * 10^4, -2^31 <= nums[i] <= 2^31 - 1, All elements appear exactly three times except one that appears once.",
+    "followup": "",
+    "title": "Single Number Ii",
+    "leetcode_url": "https://leetcode.com/problems/Single-Number-II/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef singleNumber(nums):\n    ones, twos = 0, 0\n    for n in nums:\n        ones = (ones ^ n) & ~twos\n        twos = (twos ^ n) & ~ones\n    return ones\n```\n    \n    In this problem, we use two variables, ones and twos, to represent the number of occurrences of each bit in the array's elements.\n\nInitially, both ones and twos are set to 0. We use XOR (^) to count the occurrences of each bit in the array. The reason we use XOR is that it cancels out the same bits, so if a bit occurs twice, it will be 0.\n\nWe then loop through each element of the array and use XOR to count the bit occurrences. If a bit occurs for the first time, it's XORed into ones; if it occurs for the second time, it's XORed into twos. If it appears for the third time, it should be removed from both ones and twos. To achieve this, we use the bitwise AND (&) along with the bitwise NOT (~) to clear the bits that appear in twos from ones and vice versa.\n\nFinally, after looping through all the elements of the array, the variable ones will only contain the bits that occurred once in the array, and that is our result. So we return the ones variable.\n    "
+}

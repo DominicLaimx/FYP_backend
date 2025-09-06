@@ -1,0 +1,11 @@
+{
+    "summary": "Check if all courses completable",
+    "question": "Determine if all courses can be completed given prerequisites as directed pairs of dependencies.",
+    "example": "Input: numCourses = 2, prerequisites = [[1,0]]; Output: true. Explanation: Course 1 depends on course 0, and it is completable.\nInput: numCourses = 2, prerequisites = [[1,0],[0,1]]; Output: false. Explanation: Courses 0 and 1 depend on each other, creating a cycle.",
+    "constraint": "1 <= numCourses <= 10^5, 0 <= prerequisites.length <= 5000, prerequisites[i].length == 2, 0 <= ai, bi < numCourses. All prerequisite pairs are unique.",
+    "followup": "",
+    "title": "Course Schedule",
+    "leetcode_url": "https://leetcode.com/problems/Course-Schedule/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nfrom collections import defaultdict, deque\n\ndef canFinish(numCourses, prerequisites):\n    adj = defaultdict(list)\n    inDegree = [0] * numCourses\n    \n    for a, b in prerequisites:\n        adj[b].append(a)\n        inDegree[a] += 1\n    \n    q = deque([i for i in range(numCourses) if inDegree[i]==0])\n    \n    while q:\n        currCourse = q.popleft()\n        numCourses -= 1\n        \n        for nextCourse in adj[currCourse]:\n            inDegree[nextCourse] -= 1\n            if inDegree[nextCourse] == 0:\n                q.append(nextCourse)\n    \n    return numCourses == 0\n```\n\n    \n    The algorithm uses the topological sorting approach utilizing Kahn's Algorithm to solve this problem. We maintain an adjacency list to represent the graph and a list of in-degrees for each vertex (course) Mark the vertices with in-degree 0 and add them to a queue (these are starter courses). Then, we process each node (course) in the queue, decrease in-degrees of their neighbors (courses they unlock). If the in-degree of any neighbor becomes 0, add it to the queue. In the end, if we have processed all courses, return true; otherwise, return false if any course is not processed.\n    "
+}

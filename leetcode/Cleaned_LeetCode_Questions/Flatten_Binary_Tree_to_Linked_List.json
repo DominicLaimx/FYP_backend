@@ -1,0 +1,11 @@
+{
+    "summary": "Flatten binary tree to linked list",
+    "question": "Transform a binary tree into a linked list where the right pointer represents the next node and left is always null, following pre-order traversal.",
+    "example": "Input: root = [1,2,5,3,4,null,6]; Output: [1,null,2,null,3,null,4,null,5,null,6]\nInput: root = []; Output: []\nInput: root = [0]; Output: [0]",
+    "constraint": "The number of nodes in the tree is in the range [0, 2000]. Node values are in the range [-100, 100].",
+    "followup": "Can you flatten the tree in-place with O(1) extra space?",
+    "title": "Flatten Binary Tree To Linked List",
+    "leetcode_url": "https://leetcode.com/problems/Flatten-Binary-Tree-to-Linked-List/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef flatten(root):\n    if not root:\n        return\n    flatten(root.left)\n    flatten(root.right)\n    if root.left:\n        temp = root.right\n        root.right = root.left\n        root.left = None\n        while root.right:\n            root = root.right\n        root.right = temp\n```\n    \n    1. Check if the root is null, then return.\n2. Recursively flatten the left and right subtrees.\n3. If there is a left subtree, temporarily store the right subtree in a variable `temp`.\n4. Make the right subtree the left subtree and set the left subtree to null.\n5. Move to the rightmost node in the new right subtree.\n6. Set the right node of the rightmost node to the `temp` variable.\n7. The tree will now be flattened into a \"linked list\" where all nodes are right child nodes.\n    "
+}

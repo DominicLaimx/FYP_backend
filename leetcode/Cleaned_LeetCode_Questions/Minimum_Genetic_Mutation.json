@@ -1,0 +1,11 @@
+{
+    "summary": "Find minimum gene mutations",
+    "question": "Determine the minimum number of mutations required to transform a gene string 'start' into 'end', given that valid mutations must exist in the gene bank.",
+    "example": "Example 1: start = \"AACCGGTT\", end = \"AACCGGTA\", bank = [\"AACCGGTA\"]. Output: 1. Example 2: start = \"AACCGGTT\", end = \"AAACGGTA\", bank = [\"AACCGGTA\",\"AACCGCTA\",\"AAACGGTA\"]. Output: 2. Example 3: start = \"AAAAACCC\", end = \"AACCCCCC\", bank = [\"AAAACCCC\",\"AAACCCCC\",\"AACCCCCC\"]. Output: 3.",
+    "constraint": "start.length == 8, end.length == 8, 0 <= bank.length <= 10, bank[i].length == 8, all strings consist of ['A', 'C', 'G', 'T']",
+    "followup": "",
+    "title": "Minimum Genetic Mutation",
+    "leetcode_url": "https://leetcode.com/problems/Minimum-Genetic-Mutation/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nfrom collections import deque\n\ndef minMutation(start, end, bank):\n    q = deque([start])\n    visited = set([start])\n    depth = 0\n\n    while q:\n        levelSize = len(q)\n        for _ in range(levelSize):\n            current = q.popleft()\n            if current == end:\n                return depth\n\n            for gene in bank:\n                if gene not in visited:\n                    diff = sum(1 for j in range(8) if current[j] != gene[j])\n                    if diff == 1:\n                        q.append(gene)\n                        visited.add(gene)\n        depth += 1\n    return -1\n```\n\n    \n    1. Use a queue to perform Breadth-First Search.\n2. Push the starting gene onto the queue, and add it to the visited set.\n3. Iterate until the queue is empty.\n   - Iterate through each level (mutations with the same depth) to find valid gene mutations.\n   - For each gene in the bank, if it has not been visited:\n     - Calculate the difference between the current gene and other genes by iterating character by character.\n     - If the difference is only 1, push the new gene onto the queue and add it to the visited set.\n   - Increase the depth (mutation count) after each level has been fully considered.\n4. If the loop ends and the end gene has not been found, return -1, otherwise return the depth.\n    "
+}

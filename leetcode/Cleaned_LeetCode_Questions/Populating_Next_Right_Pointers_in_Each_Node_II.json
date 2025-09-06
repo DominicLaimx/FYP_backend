@@ -1,0 +1,11 @@
+{
+    "summary": "Populate next pointers in tree",
+    "question": "Given a binary tree, populate each node's 'next' pointer to point to its next right node, or set it to NULL if no next right node exists.",
+    "example": "Input: root = [1,2,3,4,5,null,7]\nOutput: [1,#,2,3,#,4,5,7,#]\nExplanation: '#' indicates the end of each level. Input: root = []\nOutput: []",
+    "constraint": "Tree size is in the range [0, 6000]. Node values are between -100 and 100. Use constant extra space, assuming implicit stack space is not extra space.",
+    "followup": "You may only use constant extra space.",
+    "title": "Populating Next Right Pointers In Each Node Ii",
+    "leetcode_url": "https://leetcode.com/problems/Populating-Next-Right-Pointers-in-Each-Node-II/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass Node:\n    def __init__(self, val: int = 0, left: 'Node' = None, right: 'Node' = None, next: 'Node' = None):\n        self.val = val\n        self.left = left\n        self.right = right\n        self.next = next\n\ndef connect(root: 'Node') -> 'Node':\n    if not root:\n        return None\n\n    q = [root]\n\n    while q:\n        level_size = len(q)\n        prev = None\n\n        for i in range(level_size):\n            current_node = q.pop(0)\n\n            if prev:\n                prev.next = current_node\n            prev = current_node\n\n            if current_node.left:\n                q.append(current_node.left)\n            if current_node.right:\n                q.append(current_node.right)\n\n    return root\n```\n\n    \n    The basic idea of the algorithm is to perform level-order traversal (Breadth First Search) on the binary tree. We use a queue to store the nodes in each level. For each level, we iterate through its nodes, update the `next` pointer, and add their children to the end of the queue. The `prev` variable holds the previous node in the current level. The `next` pointer of the `prev` node is updated to the current node. The variable `prev` is then set to the current node. Repeat this process until the queue is empty which means we have visited all the nodes in the tree.\n    "
+}

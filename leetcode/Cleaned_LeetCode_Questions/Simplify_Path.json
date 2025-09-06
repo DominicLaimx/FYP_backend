@@ -1,0 +1,11 @@
+{
+    "summary": "Simplify Unix-style file path",
+    "question": "Convert the given absolute Unix-style file system path to its simplified canonical form following the specified rules.",
+    "example": "Input: path = \"/home/\"; Output: \"/home\"\nInput: path = \"/../\"; Output: \"/\"\nInput: path = \"/home//foo/\"; Output: \"/home/foo\"\nInput: path = \"/a/./b/../../c/\"; Output: \"/c\"",
+    "constraint": "1 <= path.length <= 3000; path consists of English letters, digits, '.', '/', or '_'; path is a valid absolute Unix path.",
+    "followup": "",
+    "title": "Simplify Path",
+    "leetcode_url": "https://leetcode.com/problems/Simplify-Path/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef simplifyPath(path: str) -> str:\n    stack = []\n    parts = path.split(\"/\")\n\n    for part in parts:\n        if not part or part == \".\":\n            continue\n        if part == \"..\":\n            if stack:\n                stack.pop()\n        else:\n            stack.append(part)\n\n    return \"/\" + \"/\".join(stack)\n```\n    \n    The algorithm uses a stack to keep track of the directory hierarchy. It starts by splitting the input string by '/', iterating over each part, and processing them according to the following rules:\n1. If the part is empty or \".\", skip it.\n2. If the part is \"..\", pop off the top element of the stack (if it's non-empty).\n3. Otherwise, push the part onto the stack.\n\nAfter processing all parts, concatenate the elements in the stack separated by '/' and return the canonical path.\n\nThe implementations are very similar across the four languages, with differences stemming primarily from the syntax and conventions of each language.\n    "
+}

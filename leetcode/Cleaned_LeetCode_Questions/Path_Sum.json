@@ -1,0 +1,11 @@
+{
+    "summary": "Check binary tree path sum",
+    "question": "Determine if there is a root-to-leaf path in a binary tree where the sum of node values equals the given targetSum.",
+    "example": "Input: root = [5,4,8,11,null,13,4,7,2,null,null,null,1], targetSum = 22; Output: true. Input: root = [1,2,3], targetSum = 5; Output: false. Input: root = [1,2], targetSum = 0; Output: false.",
+    "constraint": "The number of nodes in the tree is in the range [0, 5000]. Node values are between -1000 and 1000. targetSum is between -1000 and 1000.",
+    "followup": "",
+    "title": "Path Sum",
+    "leetcode_url": "https://leetcode.com/problems/Path-Sum/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef hasPathSum(root, targetSum):\n    if root is None:\n        return False\n    if root.left is None and root.right is None:\n        return targetSum - root.val == 0\n    return hasPathSum(root.left, targetSum - root.val) or hasPathSum(root.right, targetSum - root.val)\n```\n    \n    The algorithm starts at the root of the tree and performs a depth-first search. If the root is null, the function returns false as there is no path for the empty tree. If the root is a leaf node, the function checks if the targetSum is equal to the value of the root node.\n\nThen for non-leaf nodes, it checks if there exists a root-to-leaf path in the left or right subtree by recursively calling the function on the child nodes. The targetSum is updated by subtracting the value of the current node i.e., `targetSum - root.val`.\n\nThis process continues until a leaf node satisfying the targetSum is found, or all the paths have been explored and there's no match.\n    "
+}

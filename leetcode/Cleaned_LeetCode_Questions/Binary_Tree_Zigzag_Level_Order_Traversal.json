@@ -1,0 +1,11 @@
+{
+    "summary": "Zigzag traversal of binary tree",
+    "question": "Given the root of a binary tree, return the zigzag level order traversal of its nodes' values, alternating directions at each level.",
+    "example": "Input: root = [3,9,20,null,null,15,7] Output: [[3],[20,9],[15,7]]; Input: root = [1] Output: [[1]]; Input: root = [] Output: []",
+    "constraint": "The number of nodes in the tree is in the range [0, 2000]. Node values are in range [-100, 100].",
+    "followup": "",
+    "title": "Binary Tree Zigzag Level Order Traversal",
+    "leetcode_url": "https://leetcode.com/problems/Binary-Tree-Zigzag-Level-Order-Traversal/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef zigzagLevelOrder(root):\n    if not root:\n        return []\n\n    result = []\n    queue = [root]\n    zigzag = False\n\n    while queue:\n        level = []\n        for i in range(len(queue)):\n            node = queue.pop(0)\n\n            if zigzag:\n                level.insert(0, node.val)\n            else:\n                level.append(node.val)\n\n            if node.left:\n                queue.append(node.left)\n            if node.right:\n                queue.append(node.right)\n\n        result.append(level)\n        zigzag = not zigzag\n\n    return result\n```\n    \n    1. Create an empty result list, a queue and set the zigzag bool to false.\n2. Initially, add the root to the queue.\n3. While the queue is not empty, for each level, prepare an empty level list and loop over the nodes in the current level.\n4. For each node in the current level, if `zigzag` is true, insert the value at the beginning of the level list, else append it at the end.\n5. Add the left and right children of the node to the queue.\n6. After the loop, add the level list to the result list, and toggle the value of `zigzag`.\n7. Return the result list.\n    "
+}

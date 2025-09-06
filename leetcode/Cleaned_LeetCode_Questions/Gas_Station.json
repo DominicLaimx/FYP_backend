@@ -1,0 +1,11 @@
+{
+    "summary": "Find starting gas station index",
+    "question": "Given arrays gas and cost, determine if it's possible to complete a circular journey starting at one gas station. If a solution exists, return the index of the starting station; otherwise, return -1.",
+    "example": "Input: gas = [1,2,3,4,5], cost = [3,4,5,1,2] Output: 3. Input: gas = [2,3,4], cost = [3,4,3] Output: -1.",
+    "constraint": "1 <= n <= 104. 0 <= gas[i], cost[i] <= 104. gas.length == cost.length == n.",
+    "followup": "",
+    "title": "Gas Station",
+    "leetcode_url": "https://leetcode.com/problems/Gas-Station/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef can_complete_circuit(gas, cost):\n    total_gas, total_cost, start, gas_tank = 0, 0, 0, 0\n    for i in range(len(gas)):\n        total_gas += gas[i]\n        total_cost += cost[i]\n        gas_tank += gas[i] - cost[i]\n        if gas_tank < 0:\n            start = i + 1\n            gas_tank = 0\n    return -1 if total_gas < total_cost else start\n```\n    \n    The algorithm maintains four variables: `total_gas`, `total_cost`, `start`, and `gas_tank`. We initialize these variables to 0. We then loop through each gas station and perform the following steps:\n\n1. Add the gas at the current station to `total_gas`.\n2. Add the cost of traveling from this station to the next one to `total_cost`.\n3. Add the net gain/loss of gas (gas[i] - cost[i]) to `gas_tank`.\n4. If the `gas_tank` is negative, update the `start` position to the next station and reset the `gas_tank` to 0.\n\nAfter looping through all the gas stations, we check if `total_gas` is greater than or equal to `total_cost`. If it is, we return the `start` position, as this is the first gas station from which we can make a complete trip. If not, we return -1, because it is not possible to complete the circuit. \n\nThis algorithm guarantees a unique solution because if there are multiple valid starting points, there must be a gas station with a lower cost to travel from it to the next station for each solution. As a result, the one with the lowest starting cost would always be chosen, ensuring uniqueness.\n    "
+}

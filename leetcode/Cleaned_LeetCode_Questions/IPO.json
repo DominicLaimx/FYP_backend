@@ -1,0 +1,11 @@
+{
+    "summary": "Maximize capital with project selection",
+    "question": "Given initial capital, pick at most k projects with profits and capital requirements to maximize final capital.",
+    "example": "Input: k = 2, w = 0, profits = [1,2,3], capital = [0,1,1]. Output: 4. Explanation: Start with project 0, earn profit 1, move to project 2, earn profit 3, final capital = 4.",
+    "constraint": "1 <= k <= 10^5, 0 <= w <= 10^9, 1 <= n <= 10^5, 0 <= profits[i] <= 10^4, 0 <= capital[i] <= 10^9, n == profits.length == capital.length.",
+    "followup": "How can this approach be optimized for larger constraints?",
+    "title": "Ipo",
+    "leetcode_url": "https://leetcode.com/problems/IPO/",
+    "difficulty": "Hard",
+    "starter_code": "\n    ```python\nimport heapq\n\ndef findMaximizedCapital(k: int, w: int, profits, capital) -> int:\n    project_pool = list(zip(capital, profits))\n    project_pool.sort(reverse=True)\n    \n    profit_pool = []\n    \n    while k:\n        while project_pool and project_pool[-1][0] <= w:\n            heapq.heappush(profit_pool, -project_pool.pop()[1])\n        \n        if not profit_pool:\n            break\n        \n        w -= heapq.heappop(profit_pool)\n        k -= 1\n        \n    return w\n```\n    \n    1. Create an array of project pool, where each element is a pair of (capital, profit).\n2. Sort the project pool array by capital in ascending order.\n3. Initialize a priority queue called profit pool to store the profits of projects based on which one has the highest profit.\n4. Iterate through projects up to k times.\n5. In each iteration, check projects with capitals less than or equal to w in the project pool, push their profits into the profit pool and remove them from the project pool.\n6. If there is any profit in the profit pool, pop the one with the highest profit and add the profit to w.\n7. Return the final maximized capital w after finishing at most k distinct projects.\n    "
+}

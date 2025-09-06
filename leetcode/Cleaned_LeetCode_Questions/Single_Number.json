@@ -1,0 +1,11 @@
+{
+    "summary": "Find single unique element",
+    "question": "Given a non-empty array of integers where every element appears twice except for one, find the single element that appears once. Implement a solution with linear runtime complexity and constant space usage.",
+    "example": "Input: nums = [2,2,1] Output: 1; Input: nums = [4,1,2,1,2] Output: 4; Input: nums = [1] Output: 1",
+    "constraint": "1 <= nums.length <= 30000, -30000 <= nums[i] <= 30000, each element appears twice except for one element.",
+    "followup": "",
+    "title": "Single Number",
+    "leetcode_url": "https://leetcode.com/problems/Single-Number/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef singleNumber(nums):\n    result = 0\n    for num in nums:\n        result ^= num\n    return result\n```\n    \n    The algorithm utilizes the XOR bitwise operation. XOR is a binary operation that outputs 1 when the inputs differ and 0 when the inputs are the same. \n\nTo find the single element that appears once in the array, we XOR all elements in the array. Since every pair of identical numbers will cancel each other out as `a ^ a = 0`, the remaining XOR result would be the single unique number, as `0 ^ a = a`.\n\nThe algorithm processes the array once, giving it a linear time complexity of O(n), and only requires a constant amount of extra space to store the `result` variable, satisfying the requirements.\n    "
+}

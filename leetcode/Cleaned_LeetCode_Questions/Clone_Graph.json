@@ -1,0 +1,11 @@
+{
+    "summary": "Deep copy of a graph",
+    "question": "Create a deep copy of a connected undirected graph represented as an adjacency list, given a reference to the first node.",
+    "example": "Input: adjList = [[2,4],[1,3],[2,4],[1,3]]\nOutput: [[2,4],[1,3],[2,4],[1,3]]\nInput: adjList = [[]]\nOutput: [[]]\nInput: adjList = []\nOutput: []\nInput: adjList = [[2],[1]]\nOutput: [[2],[1]]",
+    "constraint": "Number of nodes in the graph is between 0 and 100. Node.val is unique and between 1 and 100. No repeated edges or self-loops. Graph is connected and all nodes are accessible from the starting node.",
+    "followup": "",
+    "title": "Clone Graph",
+    "leetcode_url": "https://leetcode.com/problems/Clone-Graph/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass Node:\n    def __init__(self, val=0, neighbors=None):\n        self.val = val\n        self.neighbors = neighbors if neighbors is not None else []\n\ndef cloneGraph(node, visited=None):\n    if node is None:\n        return None\n\n    if visited is None:\n        visited = {}\n\n    if node in visited:\n        return visited[node]\n\n    cloneNode = Node(node.val)\n    visited[node] = cloneNode\n\n    for neighbor in node.neighbors:\n        cloneNode.neighbors.append(cloneGraph(neighbor, visited))\n\n    return cloneNode\n```\n\n    \n    The algorithm uses Depth First Search (DFS) to traverse the graph and make a deep copy of the nodes. Here is the algorithm:\n\n1. Create a `visited` dictionary (C++: `unordered_map`, Java: `HashMap`, Python: `dict`, JavaScript: `Map`) to track visited nodes and keep their clones.\n2. Define a recursive helper function `cloneGraph` that takes a node and the visited dictionary as input.\n3. If the input node is `null`, return `null`.\n4. If the input node is already in the visited dictionary, return its clone.\n5. Otherwise, create a new clone node with the same value as the input node, and add it to the visited dictionary.\n6. Iterate through the neighbors of the input node, and call the `cloneGraph` helper function recursively for each neighbor, adding the returned clones to the clone node's neighbors.\n7. Return the clone node.\n\nFinally, call the `cloneGraph` helper function with the given node and the initially empty visited dictionary.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Remove occurrences of a value",
+    "question": "Given an integer array nums and an integer val, modify nums in-place to remove all occurrences of val and return the count of remaining elements. Ensure the first part of nums contains the final result, and use O(1) extra memory.",
+    "example": "Example 1: Input: nums = [3,2,2,3], val = 3; Output: k = 2, nums = [2,2,_,_]. Example 2: Input: nums = [0,1,2,2,3,0,4,2], val = 2; Output: k = 5, nums = [0,1,4,0,3,_,_,_].",
+    "constraint": "0 <= nums.length <= 100; 0 <= nums[i] <= 50; 0 <= val <= 100",
+    "followup": "",
+    "title": "Remove Element",
+    "leetcode_url": "https://leetcode.com/problems/Remove-Element/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef removeElement(nums, val):\n    i = 0\n    for j in range(len(nums)):\n        if nums[j] != val:\n            nums[i] = nums[j]\n            i += 1\n    return i\n```\n    \n    The algorithm uses two pointers approach. The pointer `i` maintains the position where the next non-val element should be placed, and pointer `j` iterates through the array. If the element at `j` is not equal to `val`, we place it at the position `i` and increment the `i` pointer. The loop continues until we have checked all the elements in the array. The `i` pointer will give us the count of elements that are not equal to `val`, which is the result. Thus, we return the value of `i` as the final result.\n\nThe time complexity of this algorithm is O(n), where n is the number of elements in the array, as we only iterate through the array once. The space complexity is O(1) since we do not use any extra memory. We modify the input array in-place.\n    "
+}

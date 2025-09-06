@@ -1,0 +1,11 @@
+{
+    "summary": "Check if two trees are identical",
+    "question": "Write a function to determine if two binary trees are structurally identical and their nodes have the same values.",
+    "example": "Example 1: Input: p = [1,2,3], q = [1,2,3] Output: true. Example 2: Input: p = [1,2], q = [1,null,2] Output: false. Example 3: Input: p = [1,2,1], q = [1,1,2] Output: false.",
+    "constraint": "Number of nodes in both trees is in the range [0, 100]. Node values are between -10^4 and 10^4.",
+    "followup": "",
+    "title": "Same Tree",
+    "leetcode_url": "https://leetcode.com/problems/Same-Tree/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef is_same_tree(p, q):\n    if p is None and q is None:\n        return True\n    if p is None or q is None:\n        return False\n    if p.val != q.val:\n        return False\n    return is_same_tree(p.left, q.left) and is_same_tree(p.right, q.right)\n```\n\n    \n    The algorithm used is a recursive depth-first traversal of both trees. It will compare the nodes at each level of the tree, and return false if the nodes have different values or if one node is missing in one of the trees. The algorithm will only return true if all nodes in both trees are the same.\n\nAt each level, the function checks if both nodes are null, indicating we've reached the end of both trees and they must be the same. Then it checks if either node is null, indicating that one tree is missing a node and they cannot be the same. If both nodes have the same value, we then recursively check their left and right children. If both children are the same, the function returns true. If at any point nodes are found to be different, the function returns false.\n    "
+}

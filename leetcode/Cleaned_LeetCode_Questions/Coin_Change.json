@@ -1,0 +1,11 @@
+{
+    "summary": "Find minimum coins for amount",
+    "question": "Given an integer array 'coins' representing denominations and an integer 'amount', determine the minimum number of coins needed to make up that amount. Return -1 if it's impossible.",
+    "example": "Input: coins = [1,2,5], amount = 11; Output: 3. Explanation: 11 = 5 + 5 + 1",
+    "constraint": "1 <= coins.length <= 12, 1 <= coins[i] <= 2^31 - 1, 0 <= amount <= 10^4",
+    "followup": "",
+    "title": "Coin Change",
+    "leetcode_url": "https://leetcode.com/problems/Coin-Change/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef coinChange(coins, amount):\n    dp = [amount + 1] * (amount + 1)\n    dp[0] = 0\n\n    for coin in coins:\n        for i in range(coin, amount + 1):\n            dp[i] = min(dp[i], dp[i - coin] + 1)\n\n    return dp[amount] if dp[amount] <= amount else -1\n```\n    \n    The algorithm here is based on dynamic programming. We create a `dp` array with indices from 0 to the total `amount` we need to target. We initialize the `dp` array with a value greater than the amount (amount + 1). This is because this value can never be achieved using the coins, and the initialization ensures that we always get a valid minimum number of coins.\n\nWe start by initializing `dp[0]` to 0 as there will be 0 coins needed to make a sum of 0.\n\nThen, we iterate through the given coins array and for each coin, we start another iteration from the value of the coin to the total amount. For each index `i` in this inner loop, we update `dp[i]` as the minimum of its current value `dp[i]` and `dp[i - coins[j]] + 1`. This ensures that we get the minimum number of coins required to create the total amount.\n\nAfter this iteration, if the value at `dp[amount]` is less than or equal to the target amount, we return the value as the minimum number of coins required. Otherwise, if it's greater than the amount, it means we couldn't find a combination of coins to make up the total amount, so we return -1.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Merge two sorted arrays",
+    "question": "Merge nums1 and nums2 into a single sorted array directly in nums1, given nums1 has extra space to accommodate the merge.",
+    "example": "Input: nums1 = [1,2,3,0,0,0], m = 3, nums2 = [2,5,6], n = 3; Output: [1,2,2,3,5,6].",
+    "constraint": "nums1.length == m + n; nums2.length == n; 0 <= m, n <= 200; 1 <= m + n <= 200; -10^9 <= nums1[i], nums2[j] <= 10^9.",
+    "followup": "Can you create an O(m + n) time algorithm?",
+    "title": "Merge Sorted Array",
+    "leetcode_url": "https://leetcode.com/problems/Merge-Sorted-Array/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef merge(nums1, m, nums2, n):\n    i, j, k = m - 1, n - 1, m + n - 1\n    while i >= 0 and j >= 0:\n        if nums1[i] > nums2[j]:\n            nums1[k] = nums1[i]\n            i -= 1\n        else:\n            nums1[k] = nums2[j]\n            j -= 1\n        k -= 1\n    while j >= 0:\n        nums1[k] = nums2[j]\n        k -= 1\n        j -= 1\n```\n    \n    We use a two-pointer approach to merge nums1 and nums2 in reverse order. Initialize three pointers i, j, and k pointing to the last elements of nums1, nums2, and the merged nums1 array respectively.\n\nIterate in a while loop until i and j are both less than 0. Compare the values of nums1[i] and nums2[j]. If nums1[i] is greater, assign nums1[i] at position k in nums1, decrement i and k. Otherwise, assign nums2[j] at position k in nums1, and decrement j and k. This process continues for all elements in nums2.\n\nAfter the loop, if there are still elements remaining in nums2 (j >= 0), copy the remaining elements of nums2 to nums1. In this way, we merge nums1 and nums2 in non-decreasing order.\n    "
+}

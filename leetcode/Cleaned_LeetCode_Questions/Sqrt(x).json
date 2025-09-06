@@ -1,0 +1,11 @@
+{
+    "summary": "Compute square root without decimals",
+    "question": "Given a non-negative integer x, compute and return the integer part of its square root without using built-in exponent functions or operators.",
+    "example": "Input: x = 4, Output: 2; Input: x = 8, Output: 2 (since 2.82842... is truncated)",
+    "constraint": "0 <= x <= 2^31 - 1; no built-in exponent functions like pow or x ** 0.5 allowed",
+    "followup": "",
+    "title": "Sqrt(X)",
+    "leetcode_url": "https://leetcode.com/problems/Sqrt(x)/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef mySqrt(x):\n    if x == 0 or x == 1:\n        return x\n    start, end, ans = 1, x, 0\n    while start <= end:\n        mid = (start + end) // 2\n        if mid * mid == x:\n            return mid\n        if mid * mid < x:\n            start = mid + 1\n            ans = mid\n        else:\n            end = mid - 1\n    return ans\n```\n    \n    The algorithm uses a binary search approach to find the integer square root of the given number `x`. It starts with the smallest possible answer (1) and the largest possible answer (x), updating the \"start\" and \"end\" positions based on whether the current midpoint squared is smaller or larger than x. The integer square root of the number is found when `mid * mid == x`, or when the closest integer (under or equal to x) value has been located. The binary search approach keeps the time complexity at O(log(x)), making it an efficient solution.\n    "
+}

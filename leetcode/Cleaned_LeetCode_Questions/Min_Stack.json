@@ -1,0 +1,11 @@
+{
+    "summary": "Design a stack with min retrieval",
+    "question": "Implement a stack class supporting push, pop, top, and getMin operations in constant time.",
+    "example": "Input: [\"MinStack\",\"push\",\"push\",\"push\",\"getMin\",\"pop\",\"top\",\"getMin\"], [[],[-2],[0],[-3],[],[],[],[]] Output: [null,null,null,null,-3,null,0,-2]",
+    "constraint": "-2^31 <= val <= 2^31 - 1. Methods pop, top, and getMin will always be called on non-empty stacks. A maximum of 30,000 calls will be made to methods.",
+    "followup": "",
+    "title": "Min Stack",
+    "leetcode_url": "https://leetcode.com/problems/Min-Stack/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass MinStack:\n\n    def __init__(self):\n        self.stack = []\n        self.min_stack = []\n        \n    def push(self, val: int):\n        self.stack.append(val)\n        if not self.min_stack or val <= self.min_stack[-1]:\n            self.min_stack.append(val)\n        \n    def pop(self):\n        if self.stack[-1] == self.min_stack[-1]:\n            self.min_stack.pop()\n        self.stack.pop()\n\n    def top(self) -> int:\n        return self.stack[-1]\n\n    def getMin(self) -> int:\n        return self.min_stack[-1]\n```\n    \n    The MinStack class maintains two stacks - the main stack `s` (`stack` in Java, etc.) and a `minS` (`minStack` in Java, etc.) which stores the minimum elements seen so far. When an element is pushed onto the main stack, it is compared with the top element of the `minS`. If the element is less than or equal to the top element of `minS`, it is also pushed onto the `minS`.\n\nWhen an element is popped from the main stack, we compare it with the top element of the `minS`. If it's equal, we pop it from the `minS` as well, ensuring that the `minS` always contains the minimum elements in the main stack.\n\nThe `top` and `getMin` methods provide constant-time access to the top element in the main stack and the minimum element in the main stack, respectively.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Find k pairs with smallest sums",
+    "question": "Given two sorted integer arrays nums1 and nums2, and an integer k, return the k pairs (u, v) with the smallest sums, where u is from nums1 and v is from nums2.",
+    "example": "Input: nums1 = [1,7,11], nums2 = [2,4,6], k = 3; Output: [[1,2],[1,4],[1,6]]\nInput: nums1 = [1,1,2], nums2 = [1,2,3], k = 2; Output: [[1,1],[1,1]]\nInput: nums1 = [1,2], nums2 = [3], k = 3; Output: [[1,3],[2,3]]",
+    "constraint": "1 <= nums1.length, nums2.length <= 10^5; -10^9 <= nums1[i], nums2[i] <= 10^9; nums1 and nums2 are sorted in ascending order; 1 <= k <= 1000",
+    "followup": "",
+    "title": "Find K Pairs With Smallest Sums",
+    "leetcode_url": "https://leetcode.com/problems/Find-K-Pairs-with-Smallest-Sums/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nimport heapq\n\ndef kSmallestPairs(nums1, nums2, k):\n    if not nums1 or not nums2:\n        return []\n    \n    heap = [(nums1[i] + nums2[0], i, 0) for i in range(min(k, len(nums1)))]\n    heapq.heapify(heap)\n    result = []\n\n    while k > 0 and heap:\n        s, i, j = heapq.heappop(heap)\n        result.append([nums1[i], nums2[j]])\n        if j + 1 < len(nums2):\n            heapq.heappush(heap, (nums1[i] + nums2[j + 1], i, j + 1))\n        k -= 1\n\n    return result\n```\n    \n    The idea is to take advantage of the fact that the input arrays are sorted. We start by adding the first element of nums2 with each element of nums1 into a min heap. In each iteration, we pop the smallest sum from the heap, add it to the result, and then replace this sum with the sum of the same element from nums1 but with the next element from nums2, if there is a next element in nums2.\n\nThe comparison function used for the min heap is based on the actual sum of pairs of elements from the given arrays.\n\nAll solutions have O(k * log(min(k, m))) time complexity, where m is the length of the first array. This is because there will be at most min(k, m) elements in the min heap, and at most k iterations.\n    "
+}

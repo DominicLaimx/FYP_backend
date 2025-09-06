@@ -1,0 +1,11 @@
+{
+    "summary": "Validate binary search tree",
+    "question": "Determine if a given binary tree is a valid binary search tree (BST) according to defined rules.",
+    "example": "Input: root = [2,1,3], Output: true; Input: root = [5,1,4,null,null,3,6], Output: false",
+    "constraint": "Number of nodes in the tree is in range [1, 10^4]. Node values are in range [-2^31, 2^31 - 1].",
+    "followup": "",
+    "title": "Validate Binary Search Tree",
+    "leetcode_url": "https://leetcode.com/problems/Validate-Binary-Search-Tree/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef isValidBSTHelper(node, min_val, max_val):\n    if node is None:\n        return True\n    if not min_val < node.val < max_val:\n        return False\n    return (isValidBSTHelper(node.left, min_val, node.val) and\n            isValidBSTHelper(node.right, node.val, max_val))\n\ndef isValidBST(root):\n    return isValidBSTHelper(root, float('-inf'), float('inf'))\n```\n    \n    The algorithm follows a simple recursive approach to determine if a given binary tree is a valid Binary Search Tree (BST). The key idea is to maintain a range for each node, which is defined by the minimum and maximum values that the node's value should be within. For example, the root node's value should be in the range of (-Infinity, Infinity). When traversing to the left child, the maximum value for the range should be updated to the parent's value, and for traversing to the right child, the minimum value for the range should be updated to the parent's value. The algorithm continues recursively in this manner.\n\nA helper function, `isValidBSTHelper`, is defined and initialized with the root and the range (-Infinity, Infinity). If the node is `null`, it means that we have reached a leaf node and it should return `true`. If the value of the node is not within the specified range, it means that the node does not meet the BST requirement and the helper function should return `false`. If the node is valid, then the helper function proceeds to check for valid BSTs in its left and right subtrees with the updated range.\n    "
+}

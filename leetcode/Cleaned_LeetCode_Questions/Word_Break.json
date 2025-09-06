@@ -1,0 +1,11 @@
+{
+    "summary": "Check string segmentation with dictionary",
+    "question": "Determine if a string can be segmented into a sequence of dictionary words, allowing reuse of dictionary words.",
+    "example": "Input: s = 'leetcode', wordDict = ['leet', 'code']\nOutput: true\nExplanation: 'leetcode' can be segmented as 'leet code'.\n\nInput: s = 'applepenapple', wordDict = ['apple', 'pen']\nOutput: true\nExplanation: 'applepenapple' can be segmented as 'apple pen apple'.\n\nInput: s = 'catsandog', wordDict = ['cats', 'dog', 'sand', 'and', 'cat']\nOutput: false",
+    "constraint": "1 <= s.length <= 300\n1 <= wordDict.length <= 1000\n1 <= wordDict[i].length <= 20\nAll strings consist of lowercase English letters; wordDict strings are unique.",
+    "followup": "Can this be optimized further?",
+    "title": "Word Break",
+    "leetcode_url": "https://leetcode.com/problems/Word-Break/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef word_break(s, word_dict):\n    word_set = set(word_dict)\n    dp = [False] * (len(s) + 1)\n    dp[0] = True\n    for i in range(1, len(s) + 1):\n        for j in range(i):\n            if dp[j] and s[j:i] in word_set:\n                dp[i] = True\n                break\n    return dp[len(s)]\n```\n\n    \n    The algorithm uses dynamic programming to solve the problem. The dp array is created with the size of the input string s plus 1. dp[i] is true if there exists a segmentation of the first i characters of the string s into words from the dictionary. The algorithm initializes dp[0] as true since an empty string can be segmented.\n\nFor each character in the input string s, the algorithm checks all substrings ending at this character. If the substring s[j:i] is in the dictionary (or wordDict for Java and C++) and dp[j] is true, set dp[i] to true and break from the inner loop.\n\nAt the end of the algorithm, dp[s.size()] (or dp[s.length()] for Java and JavaScript, or dp[len(s)] in Python) contains the result for the entire input string s. If this value is true, the input string can be segmented into a sequence of one or more dictionary words, otherwise it cannot.\n    "
+}

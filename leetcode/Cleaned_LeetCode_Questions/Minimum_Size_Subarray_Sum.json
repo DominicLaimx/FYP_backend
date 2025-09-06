@@ -1,0 +1,11 @@
+{
+    "summary": "Find minimal length subarray",
+    "question": "Given an array of positive integers 'nums' and a positive integer 'target', return the minimal length of a contiguous subarray whose sum is greater than or equal to 'target'. If there is no such subarray, return 0.",
+    "example": "Input: target = 7, nums = [2,3,1,2,4,3]\nOutput: 2\nExplanation: The subarray [4,3] has the minimal length.\n\nInput: target = 4, nums = [1,4,4]\nOutput: 1\n\nInput: target = 11, nums = [1,1,1,1,1,1,1,1]\nOutput: 0",
+    "constraint": "1 <= target <= 10^9\n1 <= nums.length <= 10^5\n1 <= nums[i] <= 10^5",
+    "followup": "If you solved O(n), attempt O(n log(n)) solution.",
+    "title": "Minimum Size Subarray Sum",
+    "leetcode_url": "https://leetcode.com/problems/Minimum-Size-Subarray-Sum/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef minSubArrayLen(target: int, nums: List[int]) -> int:\n    left, cur_sum, min_len = 0, 0, float('inf')\n    for right in range(len(nums)):\n        cur_sum += nums[right]\n        while cur_sum >= target:\n            min_len = min(min_len, right - left + 1)\n            cur_sum -= nums[left]\n            left += 1\n    return min_len if min_len != float('inf') else 0\n```\n    \n    The algorithm initializes pointers left and right, sum cur_sum, and minimum length min_len. The right pointer traverses nums. During traversal, update cur_sum by adding nums[right]. Then check if cur_sum is greater than or equal to target. If so, update min_len by comparing min_len and the length of the current subarray (right - left + 1). Then update cur_sum by subtracting nums[left] and increment the left pointer. Continue this process until the end of nums is reached. If min_len is still at its max value at the end, return 0. Otherwise, return min_len.\n\nThis algorithm uses a sliding window technique to iterate through the array while maintaining subarray sums greater than or equal to the target.\n    "
+}

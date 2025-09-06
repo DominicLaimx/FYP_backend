@@ -1,0 +1,11 @@
+{
+    "summary": "Find max points on same line",
+    "question": "Given an array of points on the X-Y plane, determine the maximum number of points that lie on the same straight line.",
+    "example": "Input: points = [[1,1],[2,2],[3,3]]; Output: 3. Input: points = [[1,1],[3,2],[5,3],[4,1],[2,3],[1,4]]; Output: 4.",
+    "constraint": "1 <= points.length <= 300, points[i].length == 2, -10^4 <= xi, yi <= 10^4, all points are unique.",
+    "followup": "",
+    "title": "Max Points On A Line",
+    "leetcode_url": "https://leetcode.com/problems/Max-Points-on-a-Line/",
+    "difficulty": "Hard",
+    "starter_code": "\n    ```python\nfrom math import gcd\nfrom collections import defaultdict\n\ndef maxPoints(points):\n    n = len(points)\n    if n <= 2:\n        return n\n\n    max_count = 0\n\n    for i in range(n):\n        slope_map = defaultdict(int)\n        duplicates = 0\n        local_max = 0\n\n        for j in range(i+1, n):\n            deltaX = points[j][0] - points[i][0]\n            deltaY = points[j][1] - points[i][1]\n\n            if deltaX == 0 and deltaY == 0:\n                duplicates += 1\n                continue\n\n            g = gcd(deltaX, deltaY)\n            deltaX = deltaX // g\n            deltaY = deltaY // g\n\n            key = f\"{deltaX}_{deltaY}\"\n            slope_map[key] += 1\n            local_max = max(local_max, slope_map[key])\n\n        max_count = max(max_count, local_max + duplicates + 1)\n\n    return max_count\n```\n\n    \n    - Loop through all pairs of points.\n- Calculate the slope of the line determined by the two points `(deltaX / deltaY)`, as well as the number of duplicates of the same point.\n- Count the occurrences of each unique slope (i.e., the lines that go through the same two points), using a hashmap.\n- For each point, find the highest number of slopes and add the duplicates and itself to the count.\n- Find the maximum count of all points, which is the answer.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Find minimum moves in board game",
+    "question": "Given an n x n Boustrophedon integer matrix representing a board with snakes and ladders, determine the least number of moves required to reach the last square, or return -1 if it is not possible.",
+    "example": "Input: board = [[-1,-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1,-1],[-1,35,-1,-1,13,-1],[-1,-1,-1,-1,-1,-1],[-1,15,-1,-1,-1,-1]]\nOutput: 4\nInput: board = [[-1,-1],[-1,3]]\nOutput: 1",
+    "constraint": "n == board.length == board[i].length; 2 <= n <= 20; board[i][j] is -1 or in range [1, n^2]; Squares 1 and n^2 do not have ladders or snakes.",
+    "followup": "",
+    "title": "Snakes And Ladders",
+    "leetcode_url": "https://leetcode.com/problems/Snakes-and-Ladders/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef aliceWins(piles):\n    n = len(piles)\n    dp = [[0] * n for _ in range(n)]\n    for gap in range(n):\n        for i in range(n - gap):\n            j = i + gap\n            x = dp[i + 2][j] if i + 2 <= j else 0\n            y = dp[i + 1][j - 1] if i + 1 <= j - 1 else 0\n            z = dp[i][j - 2] if i <= j - 2 else 0\n            dp[i][j] = max(piles[i] + min(x, y), piles[j] + min(y, z))\n    sum_of_piles = sum(piles)\n    return dp[0][n - 1] > (sum_of_piles - dp[0][n - 1])\n```\n    \n    This problem can be solved using dynamic programming. We create a 2D DP array called `dp`. The element `dp[i][j]` represents the maximum number of stones the current player (either Alice or Bob) can get if the piles are from index `i` to index `j`.\n\nWe use a `for` loop to iterate through different lengths of the piles, starting with gaps from 0 to the length of piles. In each loop, we calculate the possible number of stones picked by the current player, considering the remaining piles and the possible selection of their opponent afterward, either from the beginning or end of the remaining piles.\n\nWe fill the DP table diagonally from the upper-left corner to the lower-right corner. After filling the table, we compare the max stones picked by Alice (i.e., `dp[0][n - 1]`) with the total sum of the stones minus max stones picked by Alice (which would be Bob's max stones). If Alice's max stones are more than Bob's max stones, we return `true`, otherwise `false`.\n    "
+}

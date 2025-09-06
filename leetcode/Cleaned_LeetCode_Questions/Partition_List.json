@@ -1,0 +1,11 @@
+{
+    "summary": "Partition linked list by value",
+    "question": "Partition a linked list such that all nodes with values less than x appear before nodes with values greater than or equal to x, while preserving their original relative order.",
+    "example": "Input: head = [1,4,3,2,5,2], x = 3\nOutput: [1,2,2,4,3,5]\nInput: head = [2,1], x = 2\nOutput: [1,2]",
+    "constraint": "The number of nodes in the list is in the range [0, 200]. Node values are in the range -100 to 100. x is in the range -200 to 200.",
+    "followup": "",
+    "title": "Partition List",
+    "leetcode_url": "https://leetcode.com/problems/Partition-List/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass ListNode:\n    def __init__(self, x):\n        self.val = x\n        self.next = None\n\ndef partition(head, x):\n    less_head = ListNode(0)\n    more_head = ListNode(0)\n    less_ptr, more_ptr = less_head, more_head\n    \n    while head:\n        if head.val < x:\n            less_ptr.next = head\n            less_ptr = head\n        else:\n            more_ptr.next = head\n            more_ptr = head\n        head = head.next\n    \n    less_ptr.next = more_head.next\n    more_ptr.next = None\n    \n    return less_head.next\n```\n    \n    1. Create two new ListNodes: less_head and more_head. These will act as head pointers for partitions of nodes that have values less than x and greater than or equal to x.\n2. Initialize two pointers, less_ptr and more_ptr, to point to the dummy head nodes just created.\n3. Iterate through the original linked list. For each node, compare its value with the given x.\n4. If the current node's value is less than x, append it to the partition pointed by less_ptr, and move less_ptr forward.\n5. If the current node's value is greater than or equal to x, append it to the partition pointed by more_ptr, and move more_ptr forward.\n6. Perform the above steps until the entire linked list has been traversed.\n7. After iterating through the linked list, connect the end of the less partition with the start of the more partition.\n8. Move the more_ptr to the end of its partition setting the its next to null.\n9. Return the head of the new partitioned linked list, which is less_head.next\n    "
+}

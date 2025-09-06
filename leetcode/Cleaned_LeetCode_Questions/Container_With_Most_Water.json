@@ -1,0 +1,11 @@
+{
+    "summary": "Find container with max water",
+    "question": "Given an array of non-negative integers representing vertical lines at coordinates, find two lines that, along with the x-axis, form a container holding the maximum amount of water.",
+    "example": "Input: height = [1,8,6,2,5,4,8,3,7], Output: 49. Input: height = [1,1], Output: 1. Input: height = [4,3,2,1,4], Output: 16. Input: height = [1,2,1], Output: 2.",
+    "constraint": "n == height.length, 2 <= n <= 105, 0 <= height[i] <= 104",
+    "followup": "",
+    "title": "Container With Most Water",
+    "leetcode_url": "https://leetcode.com/problems/Container-With-Most-Water/",
+    "difficulty": null,
+    "starter_code": "\n    ```python\ndef max_area(height):\n    max_area, left, right = 0, 0, len(height) - 1\n    while left < right:\n        max_area = max(max_area, min(height[left], height[right]) * (right - left))\n        if height[left] < height[right]:\n            left += 1\n        else:\n            right -= 1\n    return max_area\n```\n    \n    The algorithm uses a two-pointer approach, with one pointer starting from the left end and the other from the right end. It calculates the area between these two lines and updates the maximum area if the current area is larger than the previously calculated maximum area. If the height at the left pointer is less than the height at the right pointer, it moves the left pointer to the right. Otherwise, it moves the right pointer to the left. The algorithm continues until the pointers meet.\n\nThis algorithm ensures that the maximum area is found without having to check all possible pairs of lines because it always chooses the pair of lines with the maximum possible distance and minimum height difference at each step.\n    "
+}

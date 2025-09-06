@@ -1,0 +1,11 @@
+{
+    "summary": "Find minimum difference in BST",
+    "question": "Return the minimum absolute difference between the values of any two different nodes in a Binary Search Tree (BST).",
+    "example": "Input: root = [4,2,6,1,3]; Output: 1. Input: root = [1,0,48,null,null,12,49]; Output: 1.",
+    "constraint": "The number of nodes in the tree is in the range [2, 10^4]. 0 <= Node.val <= 10^5.",
+    "followup": "This question is similar to Leetcode 783: https://leetcode.com/problems/minimum-distance-between-bst-nodes/",
+    "title": "Minimum Absolute Difference In Bst",
+    "leetcode_url": "https://leetcode.com/problems/Minimum-Absolute-Difference-in-BST/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, x: int):\n        self.val = x\n        self.left = None\n        self.right = None\n\nclass Solution:\n    def getMinimumDifference(self, root: TreeNode) -> int:\n        result = float('inf')\n        prev = None\n\n        def inorderTraversal(node):\n            nonlocal result, prev\n            if node is None:\n                return\n            inorderTraversal(node.left)\n            if prev is not None:\n                result = min(result, node.val - prev.val)\n            prev = node\n            inorderTraversal(node.right)\n\n        inorderTraversal(root)\n        return result\n```\n    \n    The algorithm uses an in-order traversal of the binary search tree to find the minimum absolute difference between the values of any two different nodes in the tree. Since it's an in-order traversal, we are going through the nodes in ascending order, which makes it easier to calculate and compare differences. During the traversal, we maintain a `prev` variable that stores the previously visited node to calculate the difference with the current node. If the difference between the current node and the previous node is smaller than the current result, we update the result accordingly. At the end of the traversal, the result will be the minimum absolute difference between any two different nodes in the tree.\n    "
+}

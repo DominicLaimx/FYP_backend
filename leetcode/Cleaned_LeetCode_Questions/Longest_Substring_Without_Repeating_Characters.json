@@ -1,0 +1,11 @@
+{
+    "summary": "Find longest substring length",
+    "question": "Determine the length of the longest substring without repeating characters in a given string.",
+    "example": "Input: s = 'abcabcbb' | Output: 3; Input: s = 'bbbbb' | Output: 1; Input: s = 'pwwkew' | Output: 3; Input: s = '' | Output: 0",
+    "constraint": "0 <= s.length <= 5 * 10^4; s consists of English letters, digits, symbols, and spaces.",
+    "followup": "",
+    "title": "Longest Substring Without Repeating Characters",
+    "leetcode_url": "https://leetcode.com/problems/Longest-Substring-Without-Repeating-Characters/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef length_of_longest_substring(s: str) -> int:\n    left = 0\n    right = 0\n    max_length = 0\n    characters = set()\n\n    while right < len(s):\n        if s[right] not in characters:\n            characters.add(s[right])\n            max_length = max(max_length, right - left + 1)\n            right += 1\n        else:\n            characters.remove(s[left])\n            left += 1\n\n    return max_length\n```\n    \n    The algorithm uses a sliding window with two pointers, left and right, to iterate through the string. It also uses a set to store the unique characters in the current window.\n\n1. Initialize left and right pointers to the start of the string, and maxLength to 0.\n2. Check if the character at the right index is in the set.\n   - If it's not in the set, add the character to the set, update maxLength, and move the right pointer forward.\n   - If it's in the set, remove the character at the left index from the set, and move the left pointer forward.\n3. Repeat step 2 until the right pointer reaches the end of the string.\n4. Return maxLength. \n\nThe algorithm runs in O(n) time, where n is the length of the input string.\n    "
+}

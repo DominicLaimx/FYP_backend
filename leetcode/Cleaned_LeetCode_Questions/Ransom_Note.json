@@ -1,0 +1,11 @@
+{
+    "summary": "Check ransomNote from magazine",
+    "question": "Determine if ransomNote can be constructed from magazine using each letter only once.",
+    "example": "Input: ransomNote = 'aa', magazine = 'aab'; Output: true. Input: ransomNote = 'aa', magazine = 'ab'; Output: false.",
+    "constraint": "1 <= ransomNote.length, magazine.length <= 105. Both consist of lowercase English letters.",
+    "followup": "",
+    "title": "Ransom Note",
+    "leetcode_url": "https://leetcode.com/problems/Ransom-Note/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef can_construct(ransom_note, magazine):\n    letter_count = {}\n    \n    for c in magazine:\n        letter_count[c] = letter_count.get(c, 0) + 1\n        \n    for c in ransom_note:\n        if c not in letter_count or letter_count[c] == 0:\n            return False\n        letter_count[c] -= 1\n        \n    return True\n```\n    \n    The algorithm works as follows:\n1. Create a hash map called `letterCount`, which holds the count of each character in the `magazine` string.\n2. Iterate over the characters in `ransomNote`. For each character:\n   a. If the character is not in `letterCount` or its count is 0, return `false`, as the required letter is not available in `magazine`.\n   b. Decrease the count of the character in `letterCount` by 1.\n3. Once the iteration is done, if the entire `ransomNote` string is processed without any issue, return `true`.\n\nThis algorithm checks if the `ransomNote` can be made from the available characters in the `magazine` by using a single pass through each string and maintaining the count of characters in a hash map.\n    "
+}

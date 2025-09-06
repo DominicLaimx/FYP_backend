@@ -1,0 +1,11 @@
+{
+    "summary": "Merge sorted linked lists",
+    "question": "Merge k sorted linked lists into one sorted linked list.",
+    "example": "Input: [[1,4,5],[1,3,4],[2,6]]; Output: [1,1,2,3,4,4,5,6]\nInput: []; Output: []\nInput: [[]]; Output: []",
+    "constraint": "0 <= k <= 10^4, 0 <= lists[i].length <= 500, -10^4 <= lists[i][j] <= 10^4, lists[i] is sorted, sum of lists[i].length <= 10^4",
+    "followup": "",
+    "title": "Merge K Sorted Lists",
+    "leetcode_url": "https://leetcode.com/problems/Merge-k-Sorted-Lists/",
+    "difficulty": "Hard",
+    "starter_code": "\n    ```python\nclass ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n        \nclass Solution:\n    def mergeKLists(self, lists):\n        if not lists: return None\n        while len(lists) > 1:\n            lists.append(self.merge2Lists(lists.pop(0), lists.pop(0)))\n        return lists[0]\n        \n    def merge2Lists(self, l1, l2):\n        if not l1: return l2\n        if not l2: return l1\n        if l1.val <= l2.val:\n            l1.next = self.merge2Lists(l1.next, l2)\n            return l1\n        else:\n            l2.next = self.merge2Lists(l1, l2.next)\n            return l2\n```\n\n    \n    The algorithm follows a divide and conquer approach to merge all linked lists into one sorted linked-list. \n\n1. If the given array of linked-lists is empty, we return a null pointer.\n2. The main function `mergeKLists` merges the first two lists in the array of linked-lists and appends the results (merged list) at the end of the array. It will then remove the merged lists from the beginning of the array. This process is repeated until only one linked-list remains in the array.\n3. The function `merge2Lists` is used for merging two sorted linked-lists. The smallest element of the two lists is chosen as the head node and recursively merged with the rest of the lists.\n\nThis algorithm has a time complexity of O(kN) and a space complexity of O(1), where k is the number of linked-lists, and N is the total number of nodes across all linked-lists.\n    "
+}

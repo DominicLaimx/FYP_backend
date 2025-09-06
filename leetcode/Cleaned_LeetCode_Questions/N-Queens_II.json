@@ -1,0 +1,11 @@
+{
+    "summary": "Count solutions to n-queens puzzle",
+    "question": "Given an integer n, calculate the number of distinct solutions to the n-queens puzzle where no two queens attack each other on an n x n chessboard.",
+    "example": "Example 1: Input: n = 4, Output: 2. Example 2: Input: n = 1, Output: 1.",
+    "constraint": "1 <= n <= 9",
+    "followup": "",
+    "title": "N-Queens Ii",
+    "leetcode_url": "https://leetcode.com/problems/N-Queens-II/",
+    "difficulty": "Hard",
+    "starter_code": "\n    ```python\ndef is_safe(cols, row):\n    col = len(cols)\n    for i, r in enumerate(cols):\n        if r == row or abs(i - col) == abs(r - row):\n            return False\n    return True\n\n\ndef backtrack(n, cols):\n    if len(cols) == n:\n        return 1\n\n    count = 0\n    for i in range(n):\n        if is_safe(cols, i):\n            cols.append(i)\n            count += backtrack(n, cols)\n            cols.pop()\n\n    return count\n\n\ndef total_n_queens(n):\n    cols = []\n    return backtrack(n, cols)\n```\n    \n    The algorithm recursively places queens on columns and checks if the placement is safe, i.e., no queens are attacking each other. \n1. Maintain an array `cols` storing the row indices of placed queens. The index in this array represents the column the queen is placed in. This ensures that no two queens are placed in the same column.\n2. Recursively place queens (column-wise).\n3. Check for a safe position for each queen in the current column:\n   a. Check for same row (`cols[i] == row`).\n   b. Check for diagonal attack (`abs(i - col) == abs(cols[i] - row)`).\n4. If the current position is safe, place the queen in the current column at the current row position, and continue to place the next queen.\n5. If all queens are placed, increment the solution count.\n6. If the recursive call finishes, backtrack by removing the queen from the current column and move on to the next row in the same column.\n7. The base case is when the `cols` size equals `n`, meaning all queens have been placed safely; increment the count.\n\nThis approach considers all possible configurations for placing the n queens while avoiding visiting invalid configurations. It uses backtracking to explore the state space efficiently. The algorithm finds the number of distinct solutions to the n-queens puzzle.\n    "
+}

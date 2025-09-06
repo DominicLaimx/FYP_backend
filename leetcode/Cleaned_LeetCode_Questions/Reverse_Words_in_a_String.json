@@ -1,0 +1,11 @@
+{
+    "summary": "Reverse words in a string",
+    "question": "Given a string with words separated by spaces, reverse the order of the words, removing additional spaces between, leading, or trailing spaces.",
+    "example": "Input: s = 'the sky is blue' Output: 'blue is sky the'\nInput: s = '  hello world  ' Output: 'world hello'\nInput: s = 'a good   example' Output: 'example good a'\nInput: s = '  Bob    Loves  Alice   ' Output: 'Alice Loves Bob'\nInput: s = 'Alice does not even like bob' Output: 'bob like even not does Alice'",
+    "constraint": "1 <= s.length <= 10^4, s contains English letters (upper-case and lower-case), digits, and spaces. There is at least one word in s.",
+    "followup": "If the string data type is mutable in your language, can you solve it in-place with O(1) extra space?",
+    "title": "Reverse Words In A String",
+    "leetcode_url": "https://leetcode.com/problems/Reverse-Words-in-a-String/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef reverseWords(s):\n    words = s.split()\n    words.reverse()\n    return ' '.join(words)\n```\n    \n    The algorithm to reverse the order of the words is as follows:\n\n1. First, split the input string using spaces. In C++, we use `stringstream` and a while loop to read words, while in Java and JavaScript, we use `split` with regex to split the string based on one or more spaces. In Python, we can simply use `split()` since it splits on whitespace by default and ignores leading and trailing spaces.\n\n2. Reverse the array of words. In C++, we use the `reverse` function from the `algorithm` library. In Java, we can use `Collections.reverse()` method. In Python, we use list `reverse()` method. In JavaScript, we use the `reverse()` method on the array.\n\n3. Join the reversed array of words into a single string with a space delimiter. In C++, we concatenate words with a space but avoid adding an extra space at the end. In Java, we use `String.join()`, in Python, use `join()` on the delimiter string, and in JavaScript, use `join()` on the array.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Find max money without alert",
+    "question": "Given an array of integers representing money in houses, find the maximum money that can be robbed without robbing adjacent houses.",
+    "example": "Input: nums = [1,2,3,1]; Output: 4; Explanation: Rob house 1 (money = 1) and then house 3 (money = 3). Total = 4. Input: nums = [2,7,9,3,1]; Output: 12; Explanation: Rob house 1 (money = 2), house 3 (money = 9), and house 5 (money = 1). Total = 12.",
+    "constraint": "1 <= nums.length <= 100; 0 <= nums[i] <= 400",
+    "followup": "",
+    "title": "House Robber",
+    "leetcode_url": "https://leetcode.com/problems/House-Robber/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef rob(nums):\n    prev1, prev2 = 0, 0\n    for num in nums:\n        prev1, prev2 = max(prev2 + num, prev1), prev1\n    return prev1\n```\n    \n    We use dynamic programming, maintaining two variables `prev1` and `prev2`. `prev1` represents the maximum amount of money that can be robbed up to the current house, and `prev2` represents the maximum amount of money that can be robbed up to the house before the current house (because we cannot rob two adjacent houses). \n\nAt each house, we calculate the updated maximum amount of money that can be robbed up to the current house. This can be either the sum of the current house's money and the maximum amount of money that can be robbed up to the house before the current house (which is stored in `prev2`) or the maximum amount of money that can be robbed up to the previous house (which is stored in `prev1`). We pick the greater one and update `prev1` accordingly. At the same time, we update `prev2` by setting it to the old `prev1` value.\n\nBy the end of the loop, `prev1` will represent the maximum amount of money that can be robbed without alerting the police, which we return.\n    "
+}

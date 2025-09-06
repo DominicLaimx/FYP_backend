@@ -1,0 +1,11 @@
+{
+    "summary": "Generate letter combinations for digits",
+    "question": "Given a string of digits from 2-9, return all possible letter combinations based on telephone button mappings.",
+    "example": "Example 1: Input: digits = '23', Output: ['ad','ae','af','bd','be','bf','cd','ce','cf']. Example 2: Input: digits = '', Output: []. Example 3: Input: digits = '2', Output: ['a','b','c'].",
+    "constraint": "0 <= digits.length <= 4. Each digit must be in the range ['2', '9'].",
+    "followup": "",
+    "title": "Letter Combinations Of A Phone Number",
+    "leetcode_url": "https://leetcode.com/problems/Letter-Combinations-of-a-Phone-Number/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef letter_combinations(digits: str):\n    if not digits: return []\n    phone = [\"abc\", \"def\", \"ghi\", \"jkl\", \"mno\", \"pqrs\", \"tuv\", \"wxyz\"]\n    result = [\"\"]\n\n    for digit in digits:\n        temp = []\n        for s in result:\n            for c in phone[int(digit) - 2]:\n                temp.append(s + c)\n        result = temp\n\n    return result\n```\n    \n    The algorithm visits each digit from the given `digits` string one by one. For each digit, it appends all possible characters corresponding to that digit, in a breadth-first search manner. The current stage's results are saved in the `result` list (or `output` list in Java). A temporary list `temp` is used to store the combinations formed at each stage before replacing the `result` list. The phone buttons mapping is stored in the `phone` list/array.\n    "
+}

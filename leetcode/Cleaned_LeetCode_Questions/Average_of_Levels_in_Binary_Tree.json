@@ -1,0 +1,11 @@
+{
+    "summary": "Find average values per tree level",
+    "question": "Given the root of a binary tree, return an array of the average value of nodes at each level. Answers within 10^-5 of the actual average are acceptable.",
+    "example": "Input: root = [3,9,20,null,15,7] Output: [3.00000,14.50000,11.00000] Explanation: Level 0 average is 3, level 1 average is 14.5, and level 2 average is 11.",
+    "constraint": "The number of nodes in the tree is in the range [1, 10^4]. Node values are between -2^31 and 2^31 - 1.",
+    "followup": "",
+    "title": "Average Of Levels In Binary Tree",
+    "leetcode_url": "https://leetcode.com/problems/Average-of-Levels-in-Binary-Tree/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef averageOfLevels(root: TreeNode):\n    result = []\n    queue = [root]\n\n    while queue:\n        sum_ = 0\n        count = 0\n        temp = []\n        while queue:\n            node = queue.pop(0)\n            sum_ += node.val\n            count += 1\n            if node.left: temp.append(node.left)\n            if node.right: temp.append(node.right)\n        queue = temp\n        result.append(sum_ / count)\n\n    return result\n```\n    \n    The algorithm uses a Breadth First Search (BFS) approach to solve this problem. A queue data structure is used to keep track of the tree nodes at each level. The algorithm iterates through each level of the binary tree, summing the values of all the nodes at the current level, and dividing by the number of nodes in that level to get the average. The result is added to a vector (C++), list (Java, Python), or array (JavaScript) and returned once the queue is empty, meaning all levels have been traversed.\n    "
+}

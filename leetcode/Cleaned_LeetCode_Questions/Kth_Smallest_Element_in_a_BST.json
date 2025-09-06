@@ -1,0 +1,11 @@
+{
+    "summary": "Find kth smallest in BST",
+    "question": "Given the root of a binary search tree and an integer k, return the kth (1-indexed) smallest element in the tree.",
+    "example": "Input: root = [3,1,4,null,2], k = 1; Output: 1. Input: root = [5,3,6,2,4,null,null,1], k = 3; Output: 3.",
+    "constraint": "1 <= k <= n <= 10^4, 0 <= Node.val <= 10^4. Number of nodes in the tree is n.",
+    "followup": "If the BST is modified often and kth smallest search is frequent, how can this be optimized?",
+    "title": "Kth Smallest Element In A Bst",
+    "leetcode_url": "https://leetcode.com/problems/Kth-Smallest-Element-in-a-BST/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef kthSmallest(root, k):\n    stk = []\n    curr = root\n    \n    while True:\n        while curr:\n            stk.append(curr)\n            curr = curr.left\n        \n        curr = stk.pop()\n        \n        k -= 1\n        if k == 0:\n            return curr.val\n        \n        curr = curr.right\n```\n    \n    The algorithm uses an iterative approach to perform an in-order traversal of the binary search tree (BST). We make use of a stack to keep track of the visited nodes. Starting with the root node, we traverse the left subtree until we reach the leftmost node, pushing each node onto the stack along the way. \n\nWhen we reach a null node, we pop the top of the stack (the leftmost node). This node will be the smallest value in the tree. We continue traversing the right subtrees, decrementing the value of k each time we pop a node from the stack. When the k becomes 0, we return the value of the current node \u2013 this is the kth smallest element.\n\nWe repeat the traversal until the desired kth smallest element is found. The time complexity is O(H + k) where H is the height of the tree.\n    "
+}

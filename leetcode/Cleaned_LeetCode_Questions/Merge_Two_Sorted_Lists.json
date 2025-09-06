@@ -1,0 +1,11 @@
+{
+    "summary": "Merge two sorted linked lists",
+    "question": "Merge two sorted linked lists into a single sorted linked list by splicing their nodes.",
+    "example": "Example 1: Input: l1 = [1,2,4], l2 = [1,3,4] Output: [1,1,2,3,4,4]; Example 2: Input: l1 = [], l2 = [] Output: []; Example 3: Input: l1 = [], l2 = [0] Output: [0]",
+    "constraint": "The number of nodes in both lists is in the range [0, 50]. Values in the lists satisfy -100 <= Node.val <= 100. Both lists are sorted in non-decreasing order.",
+    "followup": "",
+    "title": "Merge Two Sorted Lists",
+    "leetcode_url": "https://leetcode.com/problems/Merge-Two-Sorted-Lists/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\nclass ListNode:\n    def __init__(self, val=0, next=None):\n        self.val = val\n        self.next = next\n         \ndef merge_two_lists(list1, list2):\n    if list1 is None:\n        return list2\n    if list2 is None:\n        return list1\n\n    if list1.val < list2.val:\n        list1.next = merge_two_lists(list1.next, list2)\n        return list1\n    else:\n        list2.next = merge_two_lists(list1, list2.next)\n        return list2\n```\n    \n    The algorithm is a recursive solution:\n1. If either `list1` or `list2` is null, return the other list as the result.\n2. Compare the values of the nodes in `list1` and `list2`.\n3. If `list1` node value is smaller, set `list1.next` to the result of recursively calling the function with `list1.next` and `list2`.\n4. Otherwise, set `list2.next` to the result of recursively calling the function with `list1` and `list2.next`.\n5. Return the current node as the new head of the merged list.\n\nThis process is repeated until one of the lists becomes null, then the other list is returned as the remainder of the merged list.\n\nPlease note that each language has some differences in syntax, like defining a class in Python or using the `nullptr` keyword in C++. However, the core logic of the solution remains the same for all languages.\n    "
+}

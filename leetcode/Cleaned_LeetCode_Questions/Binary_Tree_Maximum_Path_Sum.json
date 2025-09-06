@@ -1,0 +1,11 @@
+{
+    "summary": "Find max path sum in tree",
+    "question": "Given the root of a binary tree, return the maximum path sum of any path where a path is defined as a sequence of connected nodes with each pair of adjacent nodes connected by an edge. Each node can appear in the path at most once, and the path does not need to pass through the root.",
+    "example": "Input: root = [1,2,3] -> Output: 6 (Optimal path: 2 -> 1 -> 3)\nInput: root = [-10,9,20,null,null,15,7] -> Output: 42 (Optimal path: 15 -> 20 -> 7)",
+    "constraint": "1 <= Number of nodes <= 30,000; Node values range from -1000 to 1000",
+    "followup": "",
+    "title": "Binary Tree Maximum Path Sum",
+    "leetcode_url": "https://leetcode.com/problems/Binary-Tree-Maximum-Path-Sum/",
+    "difficulty": "Hard",
+    "starter_code": "\n    ```python\nclass TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef maxPathSum(root: TreeNode) -> int:\n    def helper(root):\n        nonlocal maxSum\n        if not root:\n            return 0\n\n        left = max(0, helper(root.left))\n        right = max(0, helper(root.right))\n\n        maxSum = max(maxSum, left + right + root.val)\n\n        return max(left, right) + root.val\n\n    maxSum = float('-inf')\n    helper(root)\n    return maxSum\n```\n    \n    The algorithm is based on Depth First Search (DFS) traversal of the binary tree.\n\n1. Create a helper function that takes the root and maximum path sum reference as the input parameters.\n2. If the current node (root) is null, return 0.\n3. Call the helper function recursively for the left and right child nodes:\n   - Set `left` as the maximum of 0 and the helper function call for the left child.\n   - Set `right` as the maximum of 0 and the helper function call for the right child.\n4. Update the maximum path sum using the current maximum, the sum of the current node's value, and the left and right children's values.\n5. Return the sum of the current node's value and the maximum of the left and right subtrees.\n\nCall the helper function with the given binary tree root and return the maximum path sum.\n    "
+}

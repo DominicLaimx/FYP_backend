@@ -1,0 +1,11 @@
+{
+    "summary": "Check if integer is palindrome",
+    "question": "Determine whether a given integer x reads the same backward as forward.",
+    "example": "Input: x = 121, Output: true; Input: x = -121, Output: false; Input: x = 10, Output: false",
+    "constraint": "-2^31 <= x <= 2^31 - 1",
+    "followup": "Could you solve it without converting the integer to a string?",
+    "title": "Palindrome Number",
+    "leetcode_url": "https://leetcode.com/problems/Palindrome-Number/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef is_palindrome(x: int) -> bool:\n    if x < 0:\n        return False\n    original, reversed = x, 0\n    while x > 0:\n        reversed = reversed * 10 + x % 10\n        x //= 10\n    return original == reversed\n```\n\n    \n    Here is the algorithm:\n\n1. If the integer is negative, immediately return false, as negative numbers cannot be palindromes.\n2. Create a variable named `original` to store the original integer value and `reversed` initialized with 0 to store the reversed integer value.\n3. Iterate through the integer while it's greater than zero and, in each iteration, perform the following operations:\n   a. Multiply the `reversed` value by 10 and add the modulus of the integer (x) by 10.\n   b. Divide the integer (x) by 10, discarding the remainder.\n4. Compare `original` and `reversed` integers; if they are equal, return true; otherwise, return false.\n\nThis approach requires O(log10(n)) time complexity as we are dividing the input by 10 in each iteration.\n    "
+}

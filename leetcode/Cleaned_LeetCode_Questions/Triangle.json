@@ -1,0 +1,11 @@
+{
+    "summary": "Find minimum path sum in triangle",
+    "question": "Given a triangle array, compute the minimum path sum from the top to the bottom. At each step, you can move to adjacent numbers in the row below, either staying at the same index or moving to the next index.",
+    "example": "Input: triangle = [[2],[3,4],[6,5,7],[4,1,8,3]] Output: 11; Input: triangle = [[-10]] Output: -10",
+    "constraint": "1 <= triangle.length <= 200; triangle[0].length == 1; triangle[i].length == triangle[i-1].length + 1; -104 <= triangle[i][j] <= 104",
+    "followup": "Could you solve this using only O(n) extra space, where n is the total number of rows in the triangle?",
+    "title": "Triangle",
+    "leetcode_url": "https://leetcode.com/problems/Triangle/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef minimumTotal(triangle):\n    for row in range(len(triangle) - 2, -1, -1):\n        for col in range(len(triangle[row])):\n            triangle[row][col] += min(triangle[row + 1][col], triangle[row + 1][col + 1])\n    return triangle[0][0]\n```\n    \n    The algorithm starts from the second last row of the triangle, moving bottom-up. For each number in the current row, we add the minimum adjacent number in the row below it. This is done for all numbers in the current row. Then, we move to the row above and repeat the process. This way, we are calculating the minimum path sum for each number in the triangle until we reach the top. Finally, the minimum path sum from top to bottom can be found in the top-most number (triangle[0][0]) after these operations are complete.\n    "
+}

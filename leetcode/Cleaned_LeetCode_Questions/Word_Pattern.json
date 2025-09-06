@@ -1,0 +1,11 @@
+{
+    "summary": "Check string follows pattern",
+    "question": "Determine if a string follows a given pattern with a bijection between pattern characters and words in the string.",
+    "example": "Example 1: Input: pattern = \"abba\", s = \"dog cat cat dog\"; Output: true\nExample 2: Input: pattern = \"abba\", s = \"dog cat cat fish\"; Output: false\nExample 3: Input: pattern = \"aaaa\", s = \"dog cat cat dog\"; Output: false\nExample 4: Input: pattern = \"abba\", s = \"dog dog dog dog\"; Output: false",
+    "constraint": "1 <= pattern.length <= 300, pattern contains only lower-case English letters. 1 <= s.length <= 3000, s contains only lower-case English letters and spaces. No leading or trailing spaces in s. Words in s are separated by a single space.",
+    "followup": "",
+    "title": "Word Pattern",
+    "leetcode_url": "https://leetcode.com/problems/Word-Pattern/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef word_pattern(pattern, s):\n    words = s.split()\n    if len(pattern) != len(words):\n        return False\n\n    char_map, word_map = {}, {}\n    for c, word in zip(pattern, words):\n        if c not in char_map and word not in word_map:\n            char_map[c] = word\n            word_map[word] = c\n        else:\n            if char_map.get(c) != word or word_map.get(word) != c:\n                return False\n\n    return True\n```\n\n    \n    1. First, split the string 's' into words array based on the space-delimited words.\n2. Check if the length of the pattern and words array is the same, otherwise return false.\n3. Create two maps (hash tables/dictionaries) - one for storing the mapping from a pattern character to a word, and the other for mapping from a word to a pattern character.\n4. Iterate through the pattern and the words array simultaneously using a loop.\n5. If a pattern character and word are not in the respective maps, save the corresponding mapping in both maps.\n6. If they exist, compare the mappings; if they differ, immediately return false.\n7. After the loop is completed, if there is no mismatch, return true.\n    "
+}

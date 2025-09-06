@@ -1,0 +1,11 @@
+{
+    "summary": "Check string for valid brackets",
+    "question": "Determine if a string containing '()', '{}', '[]' is valid based on correct pairing and order.",
+    "example": "Input: s = \"()\" -> Output: true; Input: s = \"()[{}]\" -> Output: true; Input: s = \"(]\" -> Output: false",
+    "constraint": "1 <= s.length <= 10^4; s contains only '()', '{}', '[]'.",
+    "followup": "",
+    "title": "Valid Parentheses",
+    "leetcode_url": "https://leetcode.com/problems/Valid-Parentheses/",
+    "difficulty": "Easy",
+    "starter_code": "\n    ```python\ndef is_valid(s: str) -> bool:\n    stack = []\n\n    for c in s:\n        if c in '([{':\n            stack.append(c)\n        else:\n            if not stack:\n                return False\n            if c == ')' and stack[-1] != '(':\n                return False\n            if c == '}' and stack[-1] != '{':\n                return False\n            if c == ']' and stack[-1] != '[':\n                return False\n            stack.pop()\n\n    return not stack\n```\n    \n    The algorithm uses a stack data structure to check the validity of the input string. It iterates through the string one character at a time. When an open bracket is encountered, it is pushed onto the stack. When a close bracket is encountered, the algorithm checks if the stack is empty or the corresponding open bracket is not at the top of the stack. If either of these conditions is true, the function returns false. If not, the open bracket is popped from the stack. After iterating through the entire string, the function checks if the stack is empty. If the stack is not empty, the function returns false, indicating there were unmatched open braces. Otherwise, the function returns true, indicating that the string is valid.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Longest increasing subsequence length",
+    "question": "Find the length of the longest strictly increasing subsequence in an integer array.",
+    "example": "Input: nums = [10,9,2,5,3,7,101,18], Output: 4; Input: nums = [0,1,0,3,2,3], Output: 4; Input: nums = [7,7,7,7,7,7,7], Output: 1",
+    "constraint": "1 <= nums.length <= 2500, -10^4 <= nums[i] <= 10^4",
+    "followup": "Can you develop an O(n log(n)) algorithm?",
+    "title": "Longest Increasing Subsequence",
+    "leetcode_url": "https://leetcode.com/problems/Longest-Increasing-Subsequence/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef lengthOfLIS(nums):\n    dp = [1] * len(nums)\n    max_length = 1\n    for i in range(1, len(nums)):\n        for j in range(i):\n            if nums[i] > nums[j]:\n                dp[i] = max(dp[i], dp[j] + 1)\n        max_length = max(max_length, dp[i])\n    return max_length\n```\n    \n    The algorithm employs dynamic programming to solve the problem. The algorithm initializes an array `dp` of the same length as the input array `nums`, and initializes all its elements with the value 1, indicating that at least a single element can be part of the longest increasing subsequence.\n\nThen, it employs a nested loop to iterate over the input array from the second element onwards. In the inner loop, we compare each element from the 0th index to `i-1` with the current element at `i`. If the current element is greater than the previous element, we update the `dp[i]` value by taking the maximum of the current `dp[i]` value and the `dp[j]` value of the previous element + 1, which indicates the length of the increasing subsequence.\n\nFinally, we update the max_length variable after each outer loop by taking its maximum from the array `dp`. After completing the iterations, we return the length of the longest increasing subsequence.\n    "
+}

@@ -1,0 +1,11 @@
+{
+    "summary": "Count islands in binary grid",
+    "question": "Given a 2D binary grid where '1' represents land and '0' represents water, return the number of islands in the grid. An island is surrounded by water and formed by connecting adjacent lands horizontally or vertically. Assume the grid edges are surrounded by water.",
+    "example": "Example 1: Input: grid = [['1','1','1','1','0'], ['1','1','0','1','0'], ['1','1','0','0','0'], ['0','0','0','0','0']] Output: 1 Example 2: Input: grid = [['1','1','0','0','0'], ['1','1','0','0','0'], ['0','0','1','0','0'], ['0','0','0','1','1']] Output: 3",
+    "constraint": "1 <= m, n <= 300; grid[i][j] is either '0' or '1'",
+    "followup": "Can we optimize for larger grids?",
+    "title": "Number Of Islands",
+    "leetcode_url": "https://leetcode.com/problems/Number-of-Islands/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\ndef dfs(grid, i, j):\n    if i < 0 or i >= len(grid) or j < 0 or j >= len(grid[0]) or grid[i][j] == '0':\n        return\n\n    grid[i][j] = '0'\n    dfs(grid, i + 1, j)\n    dfs(grid, i - 1, j)\n    dfs(grid, i, j + 1)\n    dfs(grid, i, j - 1)\n\ndef numIslands(grid):\n    count = 0\n    for i in range(len(grid)):\n        for j in range(len(grid[0])):\n            if grid[i][j] == '1':\n                count += 1\n                dfs(grid, i, j)\n    return count\n```\n    \n    The base algorithm is depth-first search (DFS). The idea is to loop through the entire grid and for each cell with a value of '1', increment the island count by 1 and run the DFS algorithm starting on this cell. During the DFS traversal, we modify the grid by setting the visited cells containing '1' to '0', which will avoid visiting the same land cell again. The DFS traversal stops when the boundaries of the grid are reached or a '0' cell is hit. The DFS runs recursively on the neighboring cells (up, down, left, and right) of the current cell.\n\nThe time complexity of this algorithm is O(m * n) since we may have to visit every cell in the worst case, where m and n are the row and column dimensions of the grid.\n    "
+}

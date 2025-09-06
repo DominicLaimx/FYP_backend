@@ -1,0 +1,11 @@
+{
+    "summary": "Generate combinations from range",
+    "question": "Given two integers n and k, return all possible combinations of k numbers out of the range [1, n] in any order.",
+    "example": "Input: n = 4, k = 2\nOutput: [[2,4], [3,4], [2,3], [1,2], [1,3], [1,4]]\nInput: n = 1, k = 1\nOutput: [[1]]",
+    "constraint": "1 <= n <= 20\n1 <= k <= n",
+    "followup": "",
+    "title": "Combinations",
+    "leetcode_url": "https://leetcode.com/problems/Combinations/",
+    "difficulty": "Medium",
+    "starter_code": "\n    ```python\nfrom typing import List\n\ndef combine(n: int, k: int) -> List[List[int]]:\n    def backtrack(start, current_combination):\n        if len(current_combination) == k:\n            result.append(current_combination[:])\n\n        for i in range(start, n + 1):\n            current_combination.append(i)\n            backtrack(i + 1, current_combination)\n            current_combination.pop()\n\n    result = []\n    backtrack(1, [])\n    return result\n```\n    \n    The algorithm uses a backtracking approach to generate all possible combinations of k numbers out of the range [1, n]. We create a helper function called `backtrack` that recursively generates combinations. In this helper function, we have a base case where if the size of the current combination is equal to k, we add it to the result. Otherwise, we iterate through the numbers from the start index to n, add the current number to the current combination, and make a recursive call with an incremented start index. After the call, we \"undo\" the decision by removing the number from the current combination (backtracking).\n\nThe main function initializes an empty result list, calls the `backtrack` function with a start index of 1 and an empty current combination list, and then returns the result list.\n    "
+}
