@@ -46,7 +46,13 @@ def get_all_summaries():
     """Fetch all summaries from the database."""
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, title, summary, leetcode_link, difficulty FROM questions")
+    cursor.execute("""SELECT id, title, summary, leetcode_link, difficulty FROM questions 
+                   ORDER BY 
+                    CASE difficulty
+                        WHEN 'Easy' THEN 1
+                        WHEN 'Medium' THEN 2
+                        WHEN 'Hard' THEN 3
+                    END""")
     summaries = cursor.fetchall()
     cursor.close()
     conn.close()
