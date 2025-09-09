@@ -52,7 +52,7 @@ def get_all_summaries():
                         WHEN 'Easy' THEN 1
                         WHEN 'Medium' THEN 2
                         WHEN 'Hard' THEN 3
-                    END""")
+                    END,title""")
     summaries = cursor.fetchall()
     cursor.close()
     conn.close()

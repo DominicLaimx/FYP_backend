@@ -1,0 +1,346 @@
+import requests
+from bs4 import BeautifulSoup
+import os
+from typing import List, Dict
+from tqdm import tqdm  # Progress bar
+import re
+import json
+import mysql.connector
+import random
+import bcrypt
+import csv
+from dotenv import load_dotenv
+import re
+from openai import AzureOpenAI
+
+# MySQL Database Configuration
+DB_CONFIG = {
+    "host": "aiviewmysql.mysql.database.azure.com",
+    "user": "aiview",
+    "password": "#PRASAD SHUBHANGAM RAJESH#123",
+    "database": "ai_interview",
+    "ssl_disabled": False  # 👈 Required for Azure
+}
+CSV_FILE_PATH = r"C:\Users\ASUS\Downloads\FYP interview\FYP_backend\leetcode\leetcode_category_list.csv"
+
+# URL of the webpage
+URL = "https://hiruihu.com/leetcode-top-interview-150/"
+
+HEADER_LIST = ["Array and String",
+               "Two Pointers", 
+               "Sliding Window",
+               "Hashmap",
+               "Intervals",
+               "Stack",
+               "Linked List",
+               "Binary Tree - General",
+               "Binary Tree - BFS",
+               "Graph - General",
+               "Graph - BFS",
+               "Trie",
+               "Backtracking",
+               "Divide and Conquer",
+               "Kadane’s Algorithm",
+               "Binary Search",
+               "Heap",
+               "Bit Manipulation",
+               "Math",
+               "1D Dynamic Programming",
+               "Multidimensional Dynamic Programming"
+                 ]
+
+load_dotenv(override=True)
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
+
+# Initialize Azure OpenAI client
+llm = AzureChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+def clean_question_with_ai(question_text):
+    """
+    Uses Azure OpenAI to clean and reformat the question into a strict dictionary format.
+    """
+    prompt = f"""
+    You are an AI assistant that reformats programming questions into a precise dictionary structure. 
+    The output must be in strict JSON format with **exact key names**: 
+
+    {{
+        "summary": "A one-liner summary of the question (max 5 words)",
+        "question": "A clearly stated problem description",
+        "example": "Clearly written input-output examples",
+        "constraint": "Clearly defined constraints",
+        "followup": "Follow-up question (if any), otherwise empty string"
+    }}
+
+    Here is the raw question:
+    -----
+    {question_text}
+    -----
+    Now, return only the JSON object with **no additional text**.
+    """
+
+    # response = client.chat.completions.create(
+    #     model="gpt-4o",
+    #     messages=[{"role": "system", "content": prompt}]
+    # )
+    response = llm.invoke(prompt)
+    try:
+        response_dict = json.loads(response.content)
+        
+        # Now you can access the dictionary keys as you would normally
+        # print("Successfully extracted dictionary:")
+        
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON: {e}")
+        print("The content attribute does not contain a valid JSON string.")
+    return response_dict
+
+def parse_problem_details(text: str) -> Dict:
+    """
+    Parses a string containing a problem title, description, examples, constraints,
+    and a follow-up section.
+    
+    Args:
+        text (str): The raw string content to parse.
+        
+    Returns:
+        Dict: A dictionary containing the parsed 'title', 'description', 'examples', 
+              and 'constraints'.
+    """
+    # Regex to find the main sections using their headers
+    description_match = re.search(r'## Description', text)
+    example_match = re.search(r'### Example 1:', text)
+    constraints_match = re.search(r'### Constraints:', text)
+    follow_up_match = re.search(r'### Follow up:', text)
+    
+    parsed_data = {}
+    
+    # 1. Extract the Title
+    # The title is the first line
+    title = text.split('\n')[0].strip()
+    if title:
+        parsed_data['title'] = title
+    else:
+        return {} # No title found, exit
+
+    # 2. Extract Description
+    if description_match:
+        # Description is everything from its header to the start of the first example
+        end_index = example_match.start() if example_match else len(text)
+        description_text = text[description_match.end():end_index].strip()
+        parsed_data['description'] = description_text
+
+    # 3. Extract Examples
+    if example_match and constraints_match:
+        examples_section = text[example_match.start():constraints_match.start()].strip()
+        
+        # Regex to find all example blocks
+        example_pattern = re.compile(r'### Example \d+:\s*(.*?)\s*(?=### Example \d+:|\Z)', re.DOTALL)
+        example_blocks = example_pattern.findall(examples_section)
+        
+        examples = []
+        for block in example_blocks:
+            io_match = re.search(r'- \*\*Input:\*\* (.*?)\s*- \*\*Output:\*\* (.*?)', block, re.DOTALL)
+            if io_match:
+                examples.append({
+                    "input": io_match.group(1).strip(),
+                    "output": io_match.group(2).strip()
+                })
+        parsed_data['examples'] = examples
+    
+    # 4. Extract Constraints
+    if constraints_match:
+        # The constraints section ends at the start of the follow-up or the end of the text
+        end_index = follow_up_match.start() if follow_up_match else len(text)
+        constraints_section = text[constraints_match.start():end_index].strip()
+        constraints = constraints_section.split('\n')[1:]
+        parsed_data['constraints'] = [c.strip() for c in constraints]
+    
+    return parsed_data
+
+def scrape_questions(url: str) -> List[Dict[str, str]]:
+    """
+    Scrapes a list of question titles and their corresponding page content.
+    
+    Args:
+        url: The URL of the page to scrape.
+        
+    Returns:
+        A list of dictionaries, where each dictionary contains the title, URL,
+        and content of the linked page.
+    """
+    response = requests.get(url)
+    response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    if not os.path.exists(CSV_FILE_PATH):
+        with open(CSV_FILE_PATH, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(["question_text","summary","example","constraints","leetcode_link", "title","category", "solution"])
+
+    for header in HEADER_LIST:
+        h2 = soup.find("h2", string=re.compile(header))
+        
+        results = []
+        if h2:
+            ol_list = h2.find_next_sibling("ol")
+
+            if ol_list:
+                list_items = ol_list.find_all("li")
+                
+                for item in list_items:
+                    link = item.find("a")
+                    if link and 'href' in link.attrs:
+                        title = link.get_text(strip=True)
+                        href = link['href']
+                        # Construct the full URL for the linked page
+                        full_url = requests.compat.urljoin("https://hiruihu.com", href)
+                        
+                        # Now, scrape the content of the linked page
+                        try:
+                            question,sol = scrape_linked_page(full_url)
+                            # print(question)
+                            # print(type(sol))
+                            formatted_title = title.replace(" ", "-")
+                            leetcode_link = f"https://leetcode.com/problems/{formatted_title}/"
+                            # print(leetcode_link)
+                            # print(parse_problem_details(question))
+                            llmresponse = clean_question_with_ai(question)
+                            data_row = [llmresponse["question"],llmresponse["summary"],
+                                        llmresponse["example"],llmresponse["constraint"],
+                                        leetcode_link,title,header,sol]
+                            # print(data_row)
+                            # Append the data to the CSV file
+                            with open(CSV_FILE_PATH, 'a', newline='', encoding='utf-8') as f:
+                                writer = csv.writer(f)
+                                writer.writerow(data_row)
+                                # print(f"Appended row for: {title}")
+                            save_questions(header,title,data_row)
+                        except requests.exceptions.RequestException as e:
+                            print(f"Failed to scrape {full_url}: {e}")
+                    
+        
+    return results
+
+def scrape_linked_page(url: str) -> str:
+    """
+    Scrapes the content from a Jupyter Notebook (.ipynb) file.
+    
+    Args:
+        url: The URL of the .ipynb file.
+    
+    Returns:
+        A string containing the markdown source content.
+    """
+    response = requests.get(url)
+    response.raise_for_status()
+    
+    try:
+        # The content is JSON, so we load it directly
+        notebook_data = response.json()
+        
+        # Find the first markdown cell and get its source content
+        sol = []
+        for cell in notebook_data.get("cells", []):
+            if cell.get("cell_type") == "markdown":
+                question = "".join(cell.get("source", []))
+            if cell.get("cell_type") == "code":
+                sol.append("".join(cell.get("source", []))) 
+        return question,sol
+                
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON from {url}: {e}")
+        return ""
+
+def save_questions(category, title, data_list):
+    """
+    Updates the category for a question if the title exists in the table.
+    
+    Args:
+        category (str): The category to update.
+        title (str): The title of the question to check and update.
+        db_config (dict): Database connection configuration.
+    """
+    conn = None
+    cursor = None
+    try:
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cursor = conn.cursor(dictionary=True)
+        
+        # Correct SQL syntax with parentheses and a clear alias
+        exists_query = """
+        SELECT EXISTS(
+            SELECT 1
+            FROM questions
+            WHERE title = %s
+        ) AS title_exists;
+        """
+        
+        cursor.execute(exists_query, (title,))
+        result = cursor.fetchone()
+        
+        # Correctly check the value from the dictionary
+        if result['title_exists'] == 1:
+            # print(f"Title '{title}' found. Updating category to '{category}'.")
+            
+            update_query = """
+            UPDATE questions SET category = %s WHERE title = %s;
+            """
+            cursor.execute(update_query, (category, title,))
+            conn.commit()  # Commit the transaction to save changes
+            print("Successfully updated table.")
+        else:
+            print(title)
+            insert_query = """
+            
+        INSERT INTO questions (question_text,summary,example,reservations,leetcode_link,title,difficulty,category)
+        VALUES (%s, %s, %s, %s, %s, %s, "None",%s);
+        
+
+            """
+            cursor.execute(insert_query, (data_list[0],data_list[1],data_list[2],data_list[3],data_list[4],data_list[5],category))
+            conn.commit()  # Commit the transaction to save changes
+            print("Successfully added row.")
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        # Rollback the transaction on error
+        if conn and conn.is_connected():
+            conn.rollback()
+            
+    finally:
+        # Ensure resources are always closed
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+ 
+def check_title_exists(db_config, title):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        
+        query = """
+        SELECT EXISTS(
+          SELECT 1
+          FROM questions
+          WHERE title = %s
+        ) AS title_exists;
+        """
+        
+        cursor.execute(query, (title,))
+        
+        result = cursor.fetchone()
+        
+        if result['title_exists'] == 1:
+            print(f"The title '{title}' already exists in the table.")
+            return True
+        else:
+            print(f"The title '{title}' does not exist in the table.")
+            return False
+
+    except mysql.connector.Error as err:
+        print(f"Error: {err}")
+        return False
+if __name__ == "__main__":
+    extracted_questions = scrape_questions(URL)
+    print(extracted_questions)
