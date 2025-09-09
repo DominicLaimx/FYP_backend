@@ -133,7 +133,6 @@ def parse_problem_details(text: str) -> Dict:
     if example_match and constraints_match:
         examples_section = text[example_match.start():constraints_match.start()].strip()
         
-        # Regex to find all example blocks
         example_pattern = re.compile(r'### Example \d+:\s*(.*?)\s*(?=### Example \d+:|\Z)', re.DOTALL)
         example_blocks = example_pattern.findall(examples_section)
         
@@ -214,7 +213,6 @@ def scrape_questions(url: str) -> List[Dict[str, str]]:
                             with open(CSV_FILE_PATH, 'a', newline='', encoding='utf-8') as f:
                                 writer = csv.writer(f)
                                 writer.writerow(data_row)
-                                # print(f"Appended row for: {title}")
                             save_questions(header,title,data_row)
                         except requests.exceptions.RequestException as e:
                             print(f"Failed to scrape {full_url}: {e}")
