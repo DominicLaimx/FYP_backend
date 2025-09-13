@@ -916,7 +916,7 @@ def delete_history():
     #     response = jsonify({"error": "Invalid session_id"})
     #     response.status_code = 400
     #     return apply_cors(response)
-    
+    print(f"student_id: {student_id}, question_id: {question_id}")
     if not student_id or not question_id:
         response = jsonify({"error": "Missing student_id or question_id"})
         response.status_code = 400
