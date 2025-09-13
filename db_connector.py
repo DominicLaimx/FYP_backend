@@ -325,3 +325,69 @@ def update_user_progress_by_email(email: str, question_id: int, feedback_json: d
     finally:
         cursor.close()
         conn.close()
+
+def delete_history_by_email(email: str, question_id: int):
+    """
+    delete a past interview by the user given their email.
+    """
+    import json
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cursor = conn.cursor(dictionary=True)
+    try:
+    # Fetch user by email
+        cursor.execute("SELECT questions_completed, past_feedback FROM users WHERE email = %s", (email,))
+        user = cursor.fetchone()
+
+        if not user:
+            raise Exception("User not found")
+
+        # --- SAFELY PARSE 'questions_completed' ---
+        raw_q = user["questions_completed"]
+        if isinstance(raw_q, str):
+            try:
+                current_questions = json.loads(raw_q)
+                if not isinstance(current_questions, list):
+                    current_questions = [current_questions]
+            except json.JSONDecodeError:
+                current_questions = []
+        elif isinstance(raw_q, int):
+            current_questions = [raw_q]
+        elif raw_q is None:
+            current_questions = []
+        else:
+            current_questions = list(raw_q) if isinstance(raw_q, list) else []
+
+        # Avoid duplicates
+        if question_id in current_questions:
+            current_questions.remove(question_id)
+
+        raw_fb = user["past_feedback"]
+        if isinstance(raw_fb, str):
+            try:
+                current_feedback = json.loads(raw_fb)
+            except json.JSONDecodeError:
+                current_feedback = {}
+        elif isinstance(raw_fb, dict):
+            current_feedback = raw_fb
+        else:
+            current_feedback = {}
+
+        current_feedback.pop(str(question_id), None)
+
+        # --- Write updates back ---
+        cursor.execute("""
+            UPDATE users 
+            SET questions_completed = %s, past_feedback = %s 
+            WHERE email = %s
+        """, (json.dumps(current_questions), json.dumps(current_feedback), email))
+
+        conn.commit()
+        return True
+
+    except Exception as e:
+        print(f"❌ Error updating user progress: {e}")
+        return False
+
+    finally:
+        cursor.close()
+        conn.close()

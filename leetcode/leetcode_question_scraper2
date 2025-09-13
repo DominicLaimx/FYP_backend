@@ -29,6 +29,7 @@ URL = "https://hiruihu.com/leetcode-top-interview-150/"
 HEADER_LIST = ["Array and String",
                "Two Pointers", 
                "Sliding Window",
+               "Matrix",
                "Hashmap",
                "Intervals",
                "Stack",
@@ -179,15 +180,15 @@ def scrape_questions(url: str) -> List[Dict[str, str]]:
 
     for header in HEADER_LIST:
         h2 = soup.find("h2", string=re.compile(header))
-        
-        results = []
+        print("test",h2)
         if h2:
             ol_list = h2.find_next_sibling("ol")
 
             if ol_list:
                 list_items = ol_list.find_all("li")
-                
+                print("test")
                 for item in list_items:
+                    print("test")
                     link = item.find("a")
                     if link and 'href' in link.attrs:
                         title = link.get_text(strip=True)
@@ -218,7 +219,7 @@ def scrape_questions(url: str) -> List[Dict[str, str]]:
                             print(f"Failed to scrape {full_url}: {e}")
                     
         
-    return results
+    return "Success"
 
 def scrape_linked_page(url: str) -> str:
     """
