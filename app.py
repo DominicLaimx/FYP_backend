@@ -818,83 +818,6 @@ def user_history():
         print("❌ Unexpected error in /user-history:", e)
         return apply_cors(jsonify({"error": "Internal server error"}), 500)
 
-@app.route("/final_evaluation", methods=["POST", "OPTIONS"])
-def final_evaluation():
-    """
-    Uses the entire conversation summary, user code, and partial_eval_history
-    to produce a final detailed evaluation with the existing 'evaluation_agent'.
-    """
-    if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
-
-    data = request.json
-    session_id = data.get("session_id")
-    student_id = data.get("student_id")  # ✅ Ensure student_id is received
-    question_id = data.get("question_id")  # ✅ Ensure question_id is received    
-    
-    print("Received session_id:", session_id)
-    print("Current session_store keys:", session_store.keys())  # Debugging prin    
-
-    if not session_id or session_id not in session_store:
-        response = jsonify({"error": "Invalid session_id"})
-        response.status_code = 400
-        return apply_cors(response)
-    
-    if not student_id or not question_id:
-        response = jsonify({"error": "Missing student_id or question_id"})
-        response.status_code = 400
-        return apply_cors(response)
-
-    # Gather the entire conversation summary
-    entire_summary = session_store[session_id].get("interaction_summary", "")
-    final_code = session_store[session_id]["input"][-1].get("new_code_written", "")
-    partial_eval_history = session_store[session_id].get("partial_eval_history", [])
-
-    # Build a state object for the final evaluation
-    final_input = {
-        "student_id": student_id,  # ✅ Ensure student_id is included
-        "question_id": question_id,  # ✅ Ensure question_id is included
-        "interview_question": session_store[session_id]["input"][0]["interview_question"],
-        "summary_of_past_response": entire_summary,
-        "new_code_written": final_code,
-        "partial_eval_history": partial_eval_history
-    }
-
-    eval_state = {
-        "input": [final_input],
-        "decision": [],
-        "output": []
-    }
-
-
-    # Call your evaluation_agent to produce the final evaluation
-    updated_eval_state = evaluation_agent(eval_state)
-    final_result = updated_eval_state.get("evaluation_result", {})
-
-    # Optionally store the final evaluation in the session
-    session_store[session_id]["final_evaluation"] = final_result
-
-    try:
-    # Strip down the result to just the 2 keys you care about
-        feedback_only = {
-            "final_evaluation": final_result.get("final_evaluation", {}),
-            "detailed_feedback": final_result.get("detailed_feedback", {})
-        }
-
-        update_success = update_user_progress_by_email(
-            email=student_id,
-            question_id=int(question_id),
-            feedback_json=feedback_only
-        )
-
-        if not update_success:
-            print("❌ Failed to update user progress in DB.")
-    except Exception as e:
-        print(f"❌ Exception during user progress update: {e}")
-
-
-    return apply_cors(jsonify({"final_evaluation": final_result}))
-
 @app.route("/delete_history", methods=["POST", "OPTIONS"])
 def delete_history():
     """
@@ -932,7 +855,11 @@ def delete_history():
         if not update_success:
             print("❌ Failed to update user progress in DB.")
     except Exception as e:
+        
         print(f"❌ Exception during user progress update: {e}")
+        response = jsonify({"error": "Internal server error"})
+        response.status_code = 500
+        return apply_cors(response)
 
 
     return apply_cors(jsonify({"res": "success"}))
