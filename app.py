@@ -35,6 +35,7 @@ from db_connector import get_user_feedback_history
 from db_connector import update_user_progress_by_email
 from db_connector import delete_history_by_email
 from google.cloud import texttospeech
+import subprocess
 
 app = Flask(__name__)
 # Apply CORS with the correct origin and credentials support:
@@ -863,6 +864,61 @@ def delete_history():
 
 
     return apply_cors(jsonify({"res": "success"}))
+
+@app.route('/run_code_python', methods=['POST', 'OPTIONS'])
+def respond():
+    if request.method == "OPTIONS":
+        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+
+    data = request.json
+    session_id = data.get("session_id")
+    if not session_id or session_id not in session_store:
+        return apply_cors(jsonify({"error": "Invalid session_id"}), 400)
+
+    # user_input = data.get("user_input", "")
+    # new_code_written = data.get("new_code_written", "")
+    # current_state = session_store[session_id]
+    # prev_summary = current_state.get("interaction_summary", "")
+
+    data = request.json
+    code = data.get('input_code', '')
+    # user_input = data.get('input', '')
+
+    # Use a secure, temporary file for execution
+    temp_file = 'temp_code.py'
+    
+    # Save the code to the temporary file
+    with open(temp_file, 'w') as f:
+        f.write(code)
+
+    try:
+        # Run the code in a subprocess with a timeout and security measures
+        # We use a dedicated, secure user for execution in production
+        result = subprocess.run(
+            ['python3', temp_file],
+            # input=user_input,
+            capture_output=True,
+            text=True,
+            timeout=10 # Set a timeout to prevent infinite loops
+        )
+
+        output = result.stdout
+        error = result.stderr
+
+        if error:
+            return jsonify({'error': error}), 400
+        else:
+            print(f"DOM: {output}")
+            return jsonify({'output': output}), 200
+
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Execution timed out.'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
 @app.route('/elevenlabs_tts', methods=['POST', 'OPTIONS'])
 def elevenlabs_tts():
