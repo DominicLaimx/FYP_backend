@@ -866,7 +866,7 @@ def delete_history():
     return apply_cors(jsonify({"res": "success"}))
 
 @app.route('/run_code_python', methods=['POST', 'OPTIONS'])
-def respond():
+def run_code_python():
     if request.method == "OPTIONS":
         return apply_cors(jsonify({"message": "CORS Preflight OK"}))
 
