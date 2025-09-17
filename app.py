@@ -909,7 +909,8 @@ def run_code_python():
             return jsonify({'error': error}), 400
         else:
             print(f"DOM: {output}")
-            return jsonify({'output': output}), 200
+            # return jsonify({'output': output}), 200
+            return apply_cors(jsonify({"res": output}))
 
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'Execution timed out.'}), 400
