@@ -906,7 +906,7 @@ def run_code_python():
         error = result.stderr
 
         if error:
-            return jsonify({'error': error}), 400
+            return apply_cors(jsonify({"res": output}))
         else:
             print(f"DOM: {output}")
             # return jsonify({'output': output}), 200
