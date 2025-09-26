@@ -62,7 +62,7 @@ def get_question_by_id(question_id):
     """Fetch a specific question by ID."""
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, question_text, example, reservations FROM questions WHERE id = %s", (question_id,))
+    cursor.execute("SELECT id, question_text, example, reservations, difficulty FROM questions WHERE id = %s", (question_id,))
     question = cursor.fetchone()
     cursor.close()
     conn.close()

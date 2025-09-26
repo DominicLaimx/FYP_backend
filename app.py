@@ -474,6 +474,7 @@ def start_interview():
         "question": question["question_text"],  # ✅ Send question to frontend
         "example": question.get("example", ""),  # ✅ Send example to frontend
         "constraint": question.get("reservations", ""),
+        "difficulty": question.get("difficulty", ""),
         "question_id": question["id"],  # ✅ Include question ID for tracking
         "start_time": session_store[session_id]["start_time"]  # ✅ Send start time to frontend
     }))
@@ -901,6 +902,7 @@ def run_code_python():
             text=True,
             timeout=10 # Set a timeout to prevent infinite loops
         )
+        
 
         output = result.stdout
         error = result.stderr
