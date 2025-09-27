@@ -48,7 +48,9 @@ def get_random_question():
 
 def get_all_questions():
     """Fetch all questions from the database."""
-    conn = mysql.connector.connect(**DB_CONFIG)
+    # conn = mysql.connector.connect(**DB_CONFIG)
+    pool = get_db_pool()
+    conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT id, question_text FROM questions")
     questions = cursor.fetchall()
@@ -58,7 +60,9 @@ def get_all_questions():
 
 def get_all_summaries():
     """Fetch all summaries from the database."""
-    conn = mysql.connector.connect(**DB_CONFIG)
+    # conn = mysql.connector.connect(**DB_CONFIG)
+    pool = get_db_pool()
+    conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""SELECT id, title, summary, leetcode_link, difficulty,category FROM questions 
                    """)
