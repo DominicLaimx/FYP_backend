@@ -15,6 +15,15 @@ DB_CONFIG = {
     "ssl_disabled": False  # 👈 Required for Azure
 }
 
+from mysql.connector import pooling
+
+# Create a global pool once at app startup
+db_pool = pooling.MySQLConnectionPool(
+    pool_name="mypool",
+    pool_size=3,
+    **DB_CONFIG
+)
+
 def get_random_question():
     """Fetch a random interview question from the MySQL database."""
     try:
@@ -47,12 +56,7 @@ def get_all_summaries():
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""SELECT id, title, summary, leetcode_link, difficulty,category FROM questions 
-                   ORDER BY 
-                    CASE difficulty
-                        WHEN 'Easy' THEN 1
-                        WHEN 'Medium' THEN 2
-                        WHEN 'Hard' THEN 3
-                    END,title""")
+                   ORDER BY difficulty,title""")
     summaries = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -60,7 +64,9 @@ def get_all_summaries():
 
 def get_question_by_id(question_id):
     """Fetch a specific question by ID."""
-    conn = mysql.connector.connect(**DB_CONFIG)
+    # conn = mysql.connector.connect(**DB_CONFIG)
+    # cursor = conn.cursor(dictionary=True)
+    conn = db_pool.get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT id, question_text, example, reservations, difficulty FROM questions WHERE id = %s", (question_id,))
     question = cursor.fetchone()
