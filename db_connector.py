@@ -17,12 +17,17 @@ DB_CONFIG = {
 
 from mysql.connector import pooling
 
-# Create a global pool once at app startup
-db_pool = pooling.MySQLConnectionPool(
-    pool_name="mypool",
-    pool_size=3,
-    **DB_CONFIG
-)
+db_pool = None
+
+def get_db_pool():
+    global db_pool
+    if db_pool is None:
+        db_pool = pooling.MySQLConnectionPool(
+            pool_name="mypool",
+            pool_size=3,
+            **DB_CONFIG
+        )
+    return db_pool
 
 def get_random_question():
     """Fetch a random interview question from the MySQL database."""
@@ -66,7 +71,8 @@ def get_question_by_id(question_id):
     """Fetch a specific question by ID."""
     # conn = mysql.connector.connect(**DB_CONFIG)
     # cursor = conn.cursor(dictionary=True)
-    conn = db_pool.get_connection()
+    pool = get_db_pool()
+    conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT id, question_text, example, reservations, difficulty FROM questions WHERE id = %s", (question_id,))
     question = cursor.fetchone()
