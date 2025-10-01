@@ -639,7 +639,12 @@ def register():
         response = jsonify({"error": "Internal Server Error"})
         response.status_code = 500
         return apply_cors(response)  # ✅ Ensure CORS headers are applied
-    
+
+@app.route('/initialise_db_pool', methods=['GET', 'OPTIONS'])
+def initialise_db_pool():
+    res = initialise_db_pool()
+    return apply_cors(res)
+
 @app.route('/check-auth', methods=['GET', 'OPTIONS'])
 def check_auth():
     """Checks if the user is authenticated based on the auth_token cookie."""

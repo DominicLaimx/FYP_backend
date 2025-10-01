@@ -28,6 +28,9 @@ def get_db_pool():
             **DB_CONFIG
         )
     return db_pool
+def initialise_db_pool():
+    pool = get_db_pool()
+    return "success"
 
 def get_random_question():
     """Fetch a random interview question from the MySQL database."""
