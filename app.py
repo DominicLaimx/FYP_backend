@@ -28,6 +28,7 @@ from db_connector import get_all_questions
 from db_connector import get_question_by_id
 from db_connector import get_all_summaries
 from db_connector import get_user
+from db_connector import initialise_db_pool
 from user_login import create_user
 from evaluation import evaluation_agent 
 from evaluation import partial_evaluation_agent
