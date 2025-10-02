@@ -644,7 +644,7 @@ def register():
 @app.route('/initialise_db', methods=['GET', 'OPTIONS'])
 def initialise_db():
     res = initialise_db_pool()
-    return apply_cors(res)
+    return res
 
 @app.route('/check-auth', methods=['GET', 'OPTIONS'])
 def check_auth():
