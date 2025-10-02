@@ -36,8 +36,6 @@ def initialise_db_pool():
 def get_random_question():
     """Fetch a random interview question from the MySQL database."""
     try:
-        # pool = get_db_pool()
-        conn = pool.get_connection()
         pool = get_db_pool()
         conn = pool.get_connection()
         cursor = conn.cursor(dictionary=True)
@@ -55,8 +53,7 @@ def get_random_question():
 
 def get_all_questions():
     """Fetch all questions from the database."""
-    # pool = get_db_pool()
-    conn = pool.get_connection()
+
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -68,8 +65,7 @@ def get_all_questions():
 
 def get_all_summaries():
     """Fetch all summaries from the database."""
-    # pool = get_db_pool()
-    conn = pool.get_connection()
+
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -82,9 +78,6 @@ def get_all_summaries():
 
 def get_question_by_id(question_id):
     """Fetch a specific question by ID."""
-    # pool = get_db_pool()
-    conn = pool.get_connection()
-    # cursor = conn.cursor(dictionary=True)
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
