@@ -27,6 +27,7 @@ def get_db_pool():
             pool_size=3,
             **DB_CONFIG
         )
+        print("db_pool None")
     return db_pool
 def initialise_db_pool():
     pool = get_db_pool()
@@ -35,7 +36,10 @@ def initialise_db_pool():
 def get_random_question():
     """Fetch a random interview question from the MySQL database."""
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        # pool = get_db_pool()
+    conn = pool.get_connection()
+        pool = get_db_pool()
+        conn = pool.get_connection()
         cursor = conn.cursor(dictionary=True)
         
         cursor.execute("SELECT id, question_text FROM questions ORDER BY RAND() LIMIT 1;")
@@ -51,7 +55,8 @@ def get_random_question():
 
 def get_all_questions():
     """Fetch all questions from the database."""
-    # conn = mysql.connector.connect(**DB_CONFIG)
+    # pool = get_db_pool()
+    conn = pool.get_connection()
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -63,7 +68,8 @@ def get_all_questions():
 
 def get_all_summaries():
     """Fetch all summaries from the database."""
-    # conn = mysql.connector.connect(**DB_CONFIG)
+    # pool = get_db_pool()
+    conn = pool.get_connection()
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -76,7 +82,8 @@ def get_all_summaries():
 
 def get_question_by_id(question_id):
     """Fetch a specific question by ID."""
-    # conn = mysql.connector.connect(**DB_CONFIG)
+    # pool = get_db_pool()
+    conn = pool.get_connection()
     # cursor = conn.cursor(dictionary=True)
     pool = get_db_pool()
     conn = pool.get_connection()
@@ -94,7 +101,8 @@ def check_password(input_password, stored_hashed_password):
 
 def get_user(email, password):
     """Retrieve user by email and verify password securely."""
-    conn = mysql.connector.connect(**DB_CONFIG)
+    pool = get_db_pool()
+    conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
 
     # Fetch user details (only email and hashed password)
@@ -111,7 +119,8 @@ def get_user(email, password):
 def get_user_feedback_history(user_id: str):
     """Returns all feedback history for a given user ID."""
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        pool = get_db_pool()
+        conn = pool.get_connection()
         cursor = conn.cursor(dictionary=True)
 
         cursor.execute("""
@@ -159,7 +168,8 @@ client = AzureOpenAI(
 
 def ensure_summary_column():
     """Ensure the 'summary' column exists in the 'questions' table."""
-    conn = mysql.connector.connect(**DB_CONFIG)
+    pool = get_db_pool()
+    conn = pool.get_connection()
     cursor = conn.cursor()
     
     # Add summary column if it doesn't exist
@@ -190,7 +200,8 @@ def update_question_summaries():
     """Fetch questions, generate summaries, and update the database."""
     ensure_summary_column()
     
-    conn = mysql.connector.connect(**DB_CONFIG)
+    pool = get_db_pool()
+    conn = pool.get_connection()
     cursor = conn.cursor()
 
     questions = get_all_questions()
@@ -218,7 +229,8 @@ def update_question_summaries():
 def get_user_feedback_history(user_id: str):
     """Returns all feedback history for a given user ID by reading from the users table."""
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        pool = get_db_pool()
+        conn = pool.get_connection()
         cursor = conn.cursor(dictionary=True)
 
         # Step 1: Fetch user's questions_completed and past_feedback
@@ -282,7 +294,8 @@ def update_user_progress_by_email(email: str, question_id: int, feedback_json: d
     Update the user's questions_completed and past_feedback by email.
     """
     import json
-    conn = mysql.connector.connect(**DB_CONFIG)
+    pool = get_db_pool()
+    conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
 
     try:
@@ -350,7 +363,8 @@ def delete_history_by_email(email: str, question_id: int):
     delete a past interview by the user given their email.
     """
     import json
-    conn = mysql.connector.connect(**DB_CONFIG)
+    pool = get_db_pool()
+    conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
     # Fetch user by email
