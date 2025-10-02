@@ -37,7 +37,7 @@ def get_random_question():
     """Fetch a random interview question from the MySQL database."""
     try:
         # pool = get_db_pool()
-    conn = pool.get_connection()
+        conn = pool.get_connection()
         pool = get_db_pool()
         conn = pool.get_connection()
         cursor = conn.cursor(dictionary=True)
