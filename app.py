@@ -641,8 +641,8 @@ def register():
         response.status_code = 500
         return apply_cors(response)  # ✅ Ensure CORS headers are applied
 
-@app.route('/initialise_db_pool', methods=['GET', 'OPTIONS'])
-def initialise_db_pool():
+@app.route('/initialise_db', methods=['GET', 'OPTIONS'])
+def initialise_db():
     res = initialise_db_pool()
     return apply_cors(res)
 
