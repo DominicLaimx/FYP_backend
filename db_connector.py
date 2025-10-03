@@ -40,7 +40,8 @@ def get_random_question():
         conn = pool.get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        cursor.execute("SELECT id, question_text FROM questions ORDER BY RAND() LIMIT 1;")
+        cursor.execute("""SELECT id, title, summary, leetcode_link, difficulty,category 
+                      FROM questions ORDER BY RAND() LIMIT 1;""")
         question = cursor.fetchone()
         
         cursor.close()

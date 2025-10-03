@@ -562,6 +562,15 @@ def fetch_question_by_id(question_id):
     
     return apply_cors(jsonify({"error": "Question not found"}), 404)
 
+@app.route('/get_random_question', methods=['GET', 'OPTIONS'])
+def get_random():
+    """API to get all questions."""
+    if request.method == "OPTIONS":
+        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+
+    qn = get_random_question()
+    return apply_cors(jsonify(qn))
+
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
     """Handles user login and sets a secure HTTP-only cookie."""
