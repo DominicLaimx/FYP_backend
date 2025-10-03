@@ -71,6 +71,7 @@ def get_all_summaries():
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""SELECT id, title, summary, leetcode_link, difficulty,category FROM questions 
+                   ORDER BY difficulty,title
                    """)
     summaries = cursor.fetchall()
     cursor.close()
