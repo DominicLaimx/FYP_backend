@@ -23,18 +23,13 @@ from azure.cognitiveservices.speech.audio import AudioOutputStream
 import tempfile
 import io
 import re
-from db_connector import get_random_question 
-from db_connector import get_all_questions
-from db_connector import get_question_by_id
-from db_connector import get_all_summaries
-from db_connector import get_user
-from db_connector import initialise_db_pool
+from db_connector import get_random_question, get_all_questions, get_question_by_id, get_all_summaries
+from db_connector import get_user, initialise_db_pool
 from user_login import create_user
 from evaluation import evaluation_agent 
 from evaluation import partial_evaluation_agent
-from db_connector import get_user_feedback_history
-from db_connector import update_user_progress_by_email
-from db_connector import delete_history_by_email
+from db_connector import get_user_feedback_history, update_user_progress_by_email, delete_history_by_email
+from prompt_templates import PROMPT_TEMPLATES
 from google.cloud import texttospeech
 import subprocess
 
@@ -62,6 +57,7 @@ class State(TypedDict):
     input: Annotated[List[dict], operator.add]  # Stores previous discussions as list of JSON objects
     decision: Annotated[List[str], operator.add]  # Allows multiple decisions per execution step
     output: Annotated[List[str], operator.add]  # Stores only the latest response
+    mode: str
 
 # Initialize StateGraph with the correct state schema
 workflow = StateGraph(State)
@@ -96,12 +92,12 @@ whisper_client = AzureOpenAI(
 def node3(state: State) -> State:
     input_data = state["input"][-1]  # Take the latest input only
     prompt = f"""
-        You are an interviewer taking a SWE interview. 
+        You are an interviewer conducting a Software Engineering interview. 
 
         The input is: {input_data} 
 
-        Classi1 the user's response into one of the following categories:
-        1 → User is lost, needs guidance
+        Classify the user's response into one of the following categories:
+        1 → User is lost and needs guidance
         2 → User asks question seeking guidance or clarification
         3 → User has given a response and you need to evaluate it
         4 → User is not talking about interview but needs a response
@@ -141,13 +137,10 @@ def router(state: State) -> Dict:
 
 def node4(state: State) -> State:
     input_data = state["input"][-1]
-    prompt = f"This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
-    The user is confused and needs some guidance. Provide the user with some guidance questions on how to proceed without giving them the answer. \
-    Remember this is a conversation, so leave room for further discussion. \
-    You're a friendly and supportive coding interviewer having a conversation. Be casual, encouraging, and ask questions naturally. \
-    Try to add some random human elements just to sound as natural as possible.\
-    NO EMOJI\
-    Make sure you are concise in your response! No more than 3 sentences"
+    mode = state["mode"]
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
+    {PROMPT_TEMPLATES[mode]["guidance"]}
+    """
     
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -169,14 +162,10 @@ def node4(state: State) -> State:
 
 def node5(state: State) -> State:
     input_data = state["input"][-1]
-    prompt = f"This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
-    The user has a specific question they'd like answered. Provide a question similar to what an interviewer \
-    might ask, without giving them any new information. Leave room for further discussion.\
-    If you look at past summary and you feel like the user has not written any code, encourage them to start writing.\
-    You're a friendly and supportive coding interviewer having a conversation. Be casual, encouraging, and ask questions naturally. \
-    Try to add some random human elements just to sound as natural as possible.\
-    NO EMOJI\
-        Make sure you are concise in your response! No more than 3 sentences"
+    mode = state["mode"]
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
+    {PROMPT_TEMPLATES[mode]["question"]}
+    """
     
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -198,17 +187,11 @@ def node5(state: State) -> State:
 
 def node6(state: State) -> State:
     input_data = state["input"][-1]
-    prompt = f"This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
-    The user has given a response. Evaluate if their response is correct.\
-    Otherwise, As an interviewer provide the person with some constructive feedback\
-    If the answer is good but there is no code written, encourage them to start writing. \
-    If code has been written then firstly most importantly, ensure that the code given is correct! If it's not tell them what is wrong but dont give answer \
-    If all is good, slightly modify the question parameters for a harder challenge. \
-    You're a friendly and supportive coding interviewer having a conversation. Be casual, encouraging, and ask questions naturally. \
-    Try to add some random human elements just to sound as natural as possible.\
-    NO EMOJI\
-    Make sure you are concise in your response! Remember to respond as an interviewer back to the candidate! No more than 3 sentences"
-    
+    mode = state["mode"]
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
+    {PROMPT_TEMPLATES[mode]["evaluation"]}
+    """
+
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "system", "content": "You are a helpful assistant."},
@@ -234,13 +217,10 @@ def node7(state: State) -> State:
 
 def node8(state: State) -> State:
     input_data = state["input"][-1]
-    prompt = f"This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
-    The user is not answering the question but asking a pertinent basic questions.\
-    Provide a response to the user's question.\
-    You're a friendly and supportive coding interviewer having a conversation. Be casual, encouraging, and ask questions naturally. \
-    Try to add some random human elements just to sound as natural as possible.\
-    NO EMOJI\
-        Make sure you are concise in your response! No more than 3 sentences"
+    mode = state["mode"]
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
+    {PROMPT_TEMPLATES[mode]["offtopic"]}
+    """
     
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -460,7 +440,8 @@ def start_interview():
             "interview_question": question["question_text"],  # ✅ Store the selected question
             "summary_of_past_response": "The user has just started and has not written any code yet.",
             "new_code_written": "",
-            "user_input": ""
+            "user_input": "",
+            "mode": "code_practice"
         }],
         "interaction_summary": "",  # ✅ Initialize an empty conversation summary
         "decision": [],
