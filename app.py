@@ -441,9 +441,10 @@ def start_interview():
             "summary_of_past_response": "The user has just started and has not written any code yet.",
             "new_code_written": "",
             "user_input": "",
-            "mode": "code_practice"
+            
         }],
         "interaction_summary": "",  # ✅ Initialize an empty conversation summary
+        "mode": "code_practice",
         "decision": [],
         "output": [],
         "start_time": time.time(),  # ✅ Store session start time
@@ -482,7 +483,6 @@ def respond():
         "summary_of_past_response": prev_summary,
         "new_code_written": new_code_written,
         "user_input": user_input,
-        "mode": mode
     }
 
     @stream_with_context
