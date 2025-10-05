@@ -475,12 +475,14 @@ def respond():
     new_code_written = data.get("new_code_written", "")
     current_state = session_store[session_id]
     prev_summary = current_state.get("interaction_summary", "")
+    mode = current_state.get("mode", "")
 
     next_input = {
         "interview_question": current_state["input"][0]["interview_question"],
         "summary_of_past_response": prev_summary,
         "new_code_written": new_code_written,
-        "user_input": user_input
+        "user_input": user_input,
+        "mode": mode
     }
 
     @stream_with_context
@@ -488,7 +490,8 @@ def respond():
         next_state = app_graph.invoke({
             "input": [next_input],
             "decision": [],
-            "output": []
+            "output": [],
+            "mode": mode
         })
 
         full_response = next_state.get("output", ["No response"])[-1]
@@ -515,6 +518,7 @@ def respond():
             "input": [next_input],
             "decision": next_state["decision"],
             "output": [full_response],
+            "mode": mode,
             "interaction_summary": new_summary,
             "start_time": current_state.get("start_time"),
             "duration": current_state.get("duration", 0)
