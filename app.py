@@ -423,7 +423,7 @@ def start_interview():
     data = request.json
     question_id = data.get("question_id")  # ✅ Get the selected question ID from the frontend
     mode = data.get("mode")
-    print(f"DOM {mode}")
+
     if not question_id:
         return apply_cors(jsonify({"error": "No question_id provided"}), 400)
 
@@ -445,7 +445,7 @@ def start_interview():
             
         }],
         "interaction_summary": "",  # ✅ Initialize an empty conversation summary
-        "mode": "code_practice",
+        "mode": mode,
         "decision": [],
         "output": [],
         "start_time": time.time(),  # ✅ Store session start time
