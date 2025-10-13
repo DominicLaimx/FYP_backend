@@ -959,18 +959,24 @@ def run_code():
         elif language == 'c':
             exe = './temp_exe'
             compile_cmd = ['gcc', temp_file, '-o', exe]
+            print(f"DOM before")
             subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
+            print(f"DOM after")
             cmd = [exe]
 
         elif language == 'c++':
             exe = './temp_exe'
             compile_cmd = ['g++', temp_file, '-o', exe]
+            print(f"DOM before")
             subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
+            print(f"DOM after")
             cmd = [exe]
 
         elif language == 'java':
             compile_cmd = ['javac', temp_file]
+            print(f"DOM before")
             subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
+            print(f"DOM after")
             cmd = ['java', 'TempCode']
 
         else:
