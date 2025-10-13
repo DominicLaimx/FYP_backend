@@ -946,7 +946,7 @@ def run_code():
     temp_files = {
         'python': 'temp_code.py',
         'c': 'temp_code.c',
-        'c++': 'temp_code.cpp',
+        'cpp': 'temp_code.cpp',
         'java': 'TempCode.java'
     }
 
@@ -970,7 +970,7 @@ def run_code():
             print(f"DOM after")
             cmd = [exe]
 
-        elif language == 'c++':
+        elif language == 'cpp':
             exe = './temp_exe'
             compile_cmd = ['g++', temp_file, '-o', exe]
             print(f"DOM before")
@@ -994,6 +994,7 @@ def run_code():
             text=True,
             timeout=10
         )
+        print("DOM result:", result)
 
         output = result.stdout.strip()
         error = result.stderr.strip()
