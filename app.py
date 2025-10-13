@@ -947,7 +947,7 @@ def run_code():
         'python': 'temp_code.py',
         'c': 'temp_code.c',
         'cpp': 'temp_code.cpp',
-        'java': 'TempCode.java'
+        'java': 'Main.java'
     }
 
     temp_file = temp_files.get(language)
@@ -983,7 +983,8 @@ def run_code():
             print(f"DOM before")
             subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
             print(f"DOM after")
-            cmd = ['java', 'TempCode']
+            cmd = ['java', 'Main']
+            
 
         else:
             return apply_cors(jsonify({"error": "Unsupported language"}))
