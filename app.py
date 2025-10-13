@@ -936,6 +936,7 @@ def run_code():
         return apply_cors(jsonify({"error": "Invalid session_id"}))
     
     language = data.get('language', '').lower()
+    print("DOM", language)
     code = data.get('input_code', '')
     
     
