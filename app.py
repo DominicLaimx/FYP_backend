@@ -803,7 +803,7 @@ def user_history():
         user_id = decoded_token.get("user_id")
 
         if not user_id:
-            return apply_cors(jsonify({"error": "User ID not found in token"}), 401)
+            return apply_cors(jsonify({"error": "User ID not found in token"}))
 
         # 🔍 Fetch the user's feedback history
         feedback_entries = get_user_feedback_history(str(user_id))
@@ -812,14 +812,14 @@ def user_history():
         return apply_cors(jsonify({"feedback": feedback_entries}))
 
     except jwt.ExpiredSignatureError:
-        return apply_cors(jsonify({"error": "Token expired"}), 401)
+        return apply_cors(jsonify({"error": "Token expired"}))
 
     except jwt.InvalidTokenError:
-        return apply_cors(jsonify({"error": "Invalid token"}), 401)
+        return apply_cors(jsonify({"error": "Invalid token"}))
 
     except Exception as e:
         print("❌ Unexpected error in /user-history:", e)
-        return apply_cors(jsonify({"error": "Internal server error"}), 500)
+        return apply_cors(jsonify({"error": "Internal server error"}))
 
 @app.route("/delete_history", methods=["POST", "OPTIONS"])
 def delete_history():
@@ -875,7 +875,7 @@ def run_code_python():
     data = request.json
     session_id = data.get("session_id")
     if not session_id or session_id not in session_store:
-        return apply_cors(jsonify({"error": "Invalid session_id"}), 400)
+        return apply_cors(jsonify({"error": "Invalid session_id"}))
 
     # user_input = data.get("user_input", "")
     # new_code_written = data.get("new_code_written", "")
@@ -916,9 +916,9 @@ def run_code_python():
             return apply_cors(jsonify({"res": output}))
 
     except subprocess.TimeoutExpired:
-        return jsonify({'error': 'Execution timed out.'}), 400
+        return apply_cors(jsonify({'error': 'Execution timed out.'}))
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return apply_cors(jsonify({'error': str(e)}))
     finally:
         # Clean up the temporary file
         if os.path.exists(temp_file):
@@ -926,16 +926,21 @@ def run_code_python():
 
 @app.route('/run_code', methods=['POST', 'OPTIONS'])
 def run_code():
+
     if request.method == "OPTIONS":
         return apply_cors(jsonify({"message": "CORS Preflight OK"}))
 
     data = request.json
+    session_id = data.get("session_id")
+    if not session_id or session_id not in session_store:
+        return apply_cors(jsonify({"error": "Invalid session_id"}))
+    
     language = data.get('language', '').lower()
     code = data.get('input_code', '')
     
     
     if not code or not language:
-        return apply_cors(jsonify({"error": "Missing code or language"}), 400)
+        return apply_cors(jsonify({"error": "Missing code or language"}))
 
     temp_files = {
         'python': 'temp_code.py',
@@ -946,7 +951,7 @@ def run_code():
 
     temp_file = temp_files.get(language)
     if not temp_file:
-        return apply_cors(jsonify({"error": f"Unsupported language: {language}"}), 400)
+        return apply_cors(jsonify({"error": f"Unsupported language: {language}"}))
 
     # Write code to file
     with open(temp_file, 'w') as f:
@@ -980,7 +985,7 @@ def run_code():
             cmd = ['java', 'TempCode']
 
         else:
-            return apply_cors(jsonify({"error": "Unsupported language"}), 400)
+            return apply_cors(jsonify({"error": "Unsupported language"}))
 
         result = subprocess.run(
             cmd,
@@ -996,9 +1001,9 @@ def run_code():
         return apply_cors(jsonify(response))
 
     except subprocess.TimeoutExpired:
-        return apply_cors(jsonify({'error': 'Execution timed out.'}), 400)
+        return apply_cors(jsonify({'error': 'Execution timed out.'}))
     except Exception as e:
-        return apply_cors(jsonify({'error': str(e)}), 400)
+        return apply_cors(jsonify({'error': str(e)}))
     finally:
         # Clean up
         for f in ['temp_code.py', 'temp_code.c', 'temp_code.cpp', 'TempCode.java', 'TempCode.class', 'temp_exe']:
