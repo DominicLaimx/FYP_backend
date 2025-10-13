@@ -924,6 +924,81 @@ def run_code_python():
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
+@app.route('/run_code', methods=['POST', 'OPTIONS'])
+def run_code():
+    if request.method == "OPTIONS":
+        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+
+    data = request.json
+    language = data.get('language', '').lower()
+    code = data.get('input_code', '')
+    
+    
+    if not code or not language:
+        return apply_cors(jsonify({"error": "Missing code or language"}), 400)
+
+    temp_files = {
+        'python': 'temp_code.py',
+        'c': 'temp_code.c',
+        'c++': 'temp_code.cpp',
+        'java': 'TempCode.java'
+    }
+
+    temp_file = temp_files.get(language)
+    if not temp_file:
+        return apply_cors(jsonify({"error": f"Unsupported language: {language}"}), 400)
+
+    # Write code to file
+    with open(temp_file, 'w') as f:
+        f.write(code)
+
+    try:
+        if language == 'python':
+            cmd = ['python3', temp_file]
+
+        elif language == 'c':
+            exe = './temp_exe'
+            compile_cmd = ['gcc', temp_file, '-o', exe]
+            subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
+            cmd = [exe]
+
+        elif language == 'c++':
+            exe = './temp_exe'
+            compile_cmd = ['g++', temp_file, '-o', exe]
+            subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
+            cmd = [exe]
+
+        elif language == 'java':
+            compile_cmd = ['javac', temp_file]
+            subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
+            cmd = ['java', 'TempCode']
+
+        else:
+            return apply_cors(jsonify({"error": "Unsupported language"}), 400)
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        output = result.stdout.strip()
+        error = result.stderr.strip()
+
+        response = {"res": output if output else error}
+        return apply_cors(jsonify(response))
+
+    except subprocess.TimeoutExpired:
+        return apply_cors(jsonify({'error': 'Execution timed out.'}), 400)
+    except Exception as e:
+        return apply_cors(jsonify({'error': str(e)}), 400)
+    finally:
+        # Clean up
+        for f in ['temp_code.py', 'temp_code.c', 'temp_code.cpp', 'TempCode.java', 'TempCode.class', 'temp_exe']:
+            if os.path.exists(f):
+                os.remove(f)
+
 @app.route('/elevenlabs_tts', methods=['POST', 'OPTIONS'])
 def elevenlabs_tts():
     """Handles ElevenLabs TTS with proper CORS support."""
