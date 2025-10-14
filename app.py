@@ -527,13 +527,13 @@ def respond():
 
     return apply_cors(Response(generate_stream(), mimetype='text/plain'))
 
-@app.route('/questions', methods=['GET', 'OPTIONS'])
-def fetch_questions():
+@app.route('/questions/<question_type>', methods=['GET', 'OPTIONS'])
+def fetch_questions(question_type):
     """API to get all questions."""
     if request.method == "OPTIONS":
         return apply_cors(jsonify({"message": "CORS Preflight OK"}))
 
-    summaries = get_all_summaries("coding")
+    summaries = get_all_summaries(question_type)
     return apply_cors(jsonify(summaries))
 
 @app.route('/question/<int:question_id>', methods=['GET', 'OPTIONS'])
@@ -548,13 +548,13 @@ def fetch_question_by_id(question_id):
     
     return apply_cors(jsonify({"error": "Question not found"}), 404)
 
-@app.route('/get_random_question', methods=['GET', 'OPTIONS'])
-def get_random():
+@app.route('/get_random_question/<question_type>', methods=['GET', 'OPTIONS'])
+def get_random(question_type):
     """API to get all questions."""
     if request.method == "OPTIONS":
         return apply_cors(jsonify({"message": "CORS Preflight OK"}))
 
-    qn = get_random_question("coding")
+    qn = get_random_question(question_type)
     return apply_cors(jsonify(qn))
 
 @app.route('/login', methods=['POST', 'OPTIONS'])
