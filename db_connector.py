@@ -33,15 +33,16 @@ def initialise_db_pool():
     pool = get_db_pool()
     return "success"
 
-def get_random_question():
+def get_random_question(question_type):
     """Fetch a random interview question from the MySQL database."""
     try:
         pool = get_db_pool()
         conn = pool.get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        cursor.execute("""SELECT id, title, summary, leetcode_link, difficulty,category 
-                      FROM questions ORDER BY RAND() LIMIT 1;""")
+        query = """SELECT id, title, summary, leetcode_link, difficulty,category 
+                      FROM questions WHERE question_type = %s ORDER BY RAND() LIMIT 1;"""
+        cursor.execute(query, (question_type,))
         question = cursor.fetchone()
         
         cursor.close()
@@ -64,15 +65,16 @@ def get_all_questions():
     conn.close()
     return questions
 
-def get_all_summaries():
+def get_all_summaries(question_type):
     """Fetch all summaries from the database."""
 
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("""SELECT id, title, summary, leetcode_link, difficulty,category FROM questions 
-                   ORDER BY difficulty,title
-                   """)
+    query = """SELECT id, title, summary, leetcode_link, difficulty,category FROM questions 
+                   WHERE question_type = %s ORDER BY difficulty,title
+                   """
+    cursor.execute(query, (question_type,))
     summaries = cursor.fetchall()
     cursor.close()
     conn.close()

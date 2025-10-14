@@ -533,7 +533,7 @@ def fetch_questions():
     if request.method == "OPTIONS":
         return apply_cors(jsonify({"message": "CORS Preflight OK"}))
 
-    summaries = get_all_summaries()
+    summaries = get_all_summaries("coding")
     return apply_cors(jsonify(summaries))
 
 @app.route('/question/<int:question_id>', methods=['GET', 'OPTIONS'])
@@ -554,7 +554,7 @@ def get_random():
     if request.method == "OPTIONS":
         return apply_cors(jsonify({"message": "CORS Preflight OK"}))
 
-    qn = get_random_question()
+    qn = get_random_question("coding")
     return apply_cors(jsonify(qn))
 
 @app.route('/login', methods=['POST', 'OPTIONS'])
@@ -965,24 +965,24 @@ def run_code():
         elif language == 'c':
             exe = './temp_exe'
             compile_cmd = ['gcc', temp_file, '-o', exe]
-            print(f"DOM before")
+            # print(f"DOM before")
             subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
-            print(f"DOM after")
+            # print(f"DOM after")
             cmd = [exe]
 
         elif language == 'cpp':
             exe = './temp_exe'
             compile_cmd = ['g++', temp_file, '-o', exe]
-            print(f"DOM before")
+            # print(f"DOM before")
             subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
-            print(f"DOM after")
+            # print(f"DOM after")
             cmd = [exe]
 
         elif language == 'java':
             compile_cmd = ['javac', temp_file]
-            print(f"DOM before")
+            # print(f"DOM before")
             subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
-            print(f"DOM after")
+            # print(f"DOM after")
             cmd = ['java', 'Main']
             
 
@@ -1009,7 +1009,7 @@ def run_code():
         return apply_cors(jsonify({'error': str(e)}))
     finally:
         # Clean up
-        for f in ['temp_code.py', 'temp_code.c', 'temp_code.cpp', 'TempCode.java', 'TempCode.class', 'temp_exe']:
+        for f in ['temp_code.py', 'temp_code.c', 'temp_code.cpp', 'Main.java', 'Main.class', 'temp_exe']:
             if os.path.exists(f):
                 os.remove(f)
 
