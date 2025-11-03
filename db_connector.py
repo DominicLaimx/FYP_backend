@@ -5,6 +5,9 @@ import bcrypt
 import json
 import os
 from dotenv import load_dotenv
+from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
+
+AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 
 # MySQL Database Configuration
 DB_CONFIG = {
@@ -32,6 +35,25 @@ def get_db_pool():
 def initialise_db_pool():
     pool = get_db_pool()
     return "success"
+
+CONTAINER_NAME = "aiviewvideos"
+
+def get_upload_url(filename: str):
+    """Generate a short-lived SAS URL for the frontend to upload directly."""
+    blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filename)
+
+    # SAS valid for 15 minutes
+    sas_token = generate_blob_sas(
+        account_name=blob_service_client.account_name,
+        container_name=CONTAINER_NAME,
+        blob_name=filename,
+        permission=BlobSasPermissions(write=True, create=True),
+        expiry=datetime.utcnow() + timedelta(minutes=15)
+    )
+
+    upload_url = f"{blob_client.url}?{sas_token}"
+    return {"upload_url": upload_url}
 
 def get_random_question(question_type):
     """Fetch a random interview question from the MySQL database."""

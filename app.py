@@ -527,6 +527,22 @@ def respond():
 
     return apply_cors(Response(generate_stream(), mimetype='text/plain'))
 
+@app.route('/save_recording', methods=['POST', 'OPTIONS'])
+def save_recording():
+    if request.method == "OPTIONS":
+        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+
+    data = request.json
+    session_id = data.get("session_id")
+    if not session_id or session_id not in session_store:
+        return apply_cors(jsonify({"error": "Invalid session_id"}))
+    try:
+        response = get_upload_url("test")
+        return apply_cors(response)
+
+    except Exception as e:
+        return apply_cors(jsonify({'error': str(e)}))
+    
 @app.route('/questions/<question_type>', methods=['GET', 'OPTIONS'])
 def fetch_questions(question_type):
     """API to get all questions."""
