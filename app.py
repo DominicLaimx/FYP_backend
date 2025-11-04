@@ -538,7 +538,7 @@ def save_recording():
         return apply_cors(jsonify({"error": "Invalid session_id"}))
     try:
         response = get_upload_url("test")
-        return apply_cors(response)
+        return apply_cors(jsonify(response))
 
     except Exception as e:
         return apply_cors(jsonify({'error': str(e)}))
