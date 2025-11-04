@@ -534,10 +534,11 @@ def save_recording():
 
     data = request.json
     session_id = data.get("session_id")
+    filename = data.get("filename")
     if not session_id or session_id not in session_store:
         return apply_cors(jsonify({"error": "Invalid session_id"}))
     try:
-        response = get_upload_url("test")
+        response = get_upload_url(filename)
         return apply_cors(jsonify(response))
 
     except Exception as e:
