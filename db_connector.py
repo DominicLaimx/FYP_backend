@@ -46,18 +46,22 @@ def get_upload_url(filename: str):
     print("-"*10)
     print("-"*10)
     blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
-    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filename)
+    account_name = blob_service_client.account_name
 
-    # SAS valid for 15 minutes
+    account_key = blob_service_client.credential.account_key
+
     sas_token = generate_blob_sas(
-        account_name=blob_service_client.account_name,
+        account_name=account_name,
         container_name=CONTAINER_NAME,
         blob_name=filename,
         permission=BlobSasPermissions(write=True, create=True),
-        expiry=datetime.utcnow() + timedelta(minutes=15)
+        expiry=datetime.utcnow() + timedelta(minutes=30),
+        account_key=account_key,  
     )
 
+    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filename)
     upload_url = f"{blob_client.url}?{sas_token}"
+
     return {"upload_url": upload_url}
 
 def get_random_question(question_type):
