@@ -8,8 +8,6 @@ from dotenv import load_dotenv
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 from datetime import datetime, timedelta
 
-AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-
 # MySQL Database Configuration
 DB_CONFIG = {
     "host": "aiviewmysql.mysql.database.azure.com",
@@ -38,9 +36,15 @@ def initialise_db_pool():
     return "success"
 
 CONTAINER_NAME = "aiviewvideos"
+AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 
 def get_upload_url(filename: str):
     """Generate a short-lived SAS URL for the frontend to upload directly."""
+    print("-"*10)
+    print("-"*10)
+    print(f"constr: {AZURE_STORAGE_CONNECTION_STRING}")
+    print("-"*10)
+    print("-"*10)
     blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
     blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filename)
 
