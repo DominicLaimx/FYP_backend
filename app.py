@@ -1251,6 +1251,7 @@ def azure_tts():
     print(f"🗣️ Azure TTS requested for sentence: {repr(text)}")
 
     try:
+        
         speech_config = speechsdk.SpeechConfig(subscription=os.getenv("AZURE_SPEECH_TTS_KEY"), region=AZURE_TTS_REGION)
         speech_config.speech_synthesis_voice_name = "en-US-AvaMultilingualNeural"
         speech_config.set_speech_synthesis_output_format(
@@ -1258,7 +1259,30 @@ def azure_tts():
         )
 
         synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
-        result = synthesizer.speak_text_async(text).get()
+
+        voice_settings={
+            "voice":"en-US-AvaMultilingualNeural",
+            "pace": "medium",
+            "pause": "100ms",
+            "tone": "newscast-formal",
+            "pitch": "0%"
+        }
+        ssml_text = f"""
+            <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" 
+                xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">
+                <voice name="{voice_settings['voice']}">
+                    <prosody rate="{voice_settings['pace']}" pitch="{voice_settings['pitch']}">
+                        <break time="{voice_settings['pause']}"/>
+                        <mstts:express-as style="{voice_settings['tone']}">
+                            {text}
+                        </mstts:express-as>
+                    </prosody>
+                </voice>
+            </speak>
+            """
+        
+        # result = synthesizer.speak_text_async(text).get()
+        result = synthesizer.speak_ssml_async(ssml_text).get()
 
         if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
             cancellation_details = speechsdk.CancellationDetails(result)
