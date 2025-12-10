@@ -27,7 +27,7 @@ from db_connector import get_random_question, get_all_questions, get_question_by
 from db_connector import get_user, initialise_db_pool, get_upload_url
 from user_login import create_user
 from evaluation import evaluation_agent 
-from evaluation import partial_evaluation_agent
+from evaluation import partial_evaluation_agent, analyze_interview_video
 from db_connector import get_user_feedback_history, update_user_progress_by_email, delete_history_by_email
 from prompt_templates import PROMPT_TEMPLATES
 from google.cloud import texttospeech
@@ -529,17 +529,35 @@ def respond():
 
 @app.route('/save_recording', methods=['POST', 'OPTIONS'])
 def save_recording():
-    if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+    # session_id = request.form.get('session_id')
+    video_file = request.files['video']
+    with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
+        # Read the file bytes
+        video_bytes = video_file.read()
+        tmp.write(video_bytes)
+        temp_path = tmp.name
+    # if request.method == "OPTIONS":
+    #     return apply_cors(jsonify({"message": "CORS Preflight OK"}))
 
-    data = request.json
-    session_id = data.get("session_id")
-    filename = data.get("filename")
-    if not session_id or session_id not in session_store:
-        return apply_cors(jsonify({"error": "Invalid session_id"}))
+    # data = request.json
+    # session_id = data.get("session_id")
+    # filename = data.get("filename")
+    
+    
+    # return jsonify(results)
+
+    # if not session_id or session_id not in session_store:
+    #     return apply_cors(jsonify({"error": "Invalid session_id"}))
     try:
-        response = get_upload_url(filename)
-        return apply_cors(jsonify(response))
+        results = analyze_interview_video(temp_path)
+            
+        results['session_info'] = {
+            # 'session_id': session_id,
+            'file_size_bytes': len(video_bytes)
+        }
+        # response = get_upload_url(filename)
+        # return apply_cors(jsonify(response))
+        return apply_cors(jsonify(results))
 
     except Exception as e:
         return apply_cors(jsonify({'error': str(e)}))
