@@ -33,6 +33,8 @@ jobs:
         run: pip install -r requirements.txt
         
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
+      - name: Install mediapipe==0.10.11 --no-cache-dir --prefer-binary
+        run: pip install -r requirements.txt
 
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r
