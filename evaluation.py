@@ -71,6 +71,107 @@ Scoring categories:
 Only output valid JSON, no code blocks, no quotes around keys besides JSON structure.
     """
 
+    prompt = f"""
+        You are an AI evaluation agent for a coding interview.
+        Output valid JSON only with this exact structure (no markdown, no extra keys):
+
+        EvaluationSchema:
+        - student_id (string)
+        - question_id (string)
+        - final_evaluation (EvaluationCategory):
+            * communication (string)
+            * problem_solving (string)
+            * technical_competency (string)
+            * code implementation (string)
+            * examples_of_what_went_well (string)
+        - detailed_feedback (EvaluationCategory):
+            * communication (string)
+            * problem_solving (string)
+            * technical_competency (string)
+            * code implementation (string)
+            * examples_of_what_went_well (string)
+        - scores:
+            * communication score (int)
+            * problem_solving score (int)
+            * technical_competency score (int)
+            * code implementation score (int)
+            * total score (int)
+            * overall assessment (string)
+            
+        - feedback and examples of what they said / coded well and what they could've done better
+        
+        Context you have:
+        - Interview Question: {input_data["interview_question"]}
+        - User's Summary: {input_data["summary_of_past_response"]}
+        - User's Code: {input_data["new_code_written"]}
+
+        Score each category carefully:
+
+        COMMUNICATION (0-10):
+        • 9-10: Exceptional - Clear, structured thinking, explains trade-offs, asks great questions
+        • 7-8: Strong - Articulate, explains reasoning well, communicates effectively
+        • 5-6: Competent - Gets ideas across but could be clearer, some gaps in explanation
+        • 3-4: Developing - Unclear at times, struggles to articulate complex thoughts  
+        • 0-2: Poor - Hard to follow, minimal or confusing communication
+
+        PROBLEM SOLVING (0-10):
+        • 9-10: Exceptional - Optimal approach, considers all edge cases, elegant solution
+        • 7-8: Strong - Logical decomposition, good solution, handles most cases
+        • 5-6: Competent - Basic approach, working but not optimal, misses some edge cases
+        • 3-4: Developing - Flawed methodology, incomplete solution, poor decomposition
+        • 0-2: Poor - No systematic approach, cannot break down the problem
+
+        TECHNICAL COMPETENCY (0-10):
+        • 9-10: Exceptional - Mastery of concepts, deep understanding, applies advanced techniques
+        • 7-8: Strong - Solid technical knowledge, applies concepts correctly, minor gaps
+        • 5-6: Competent - Basic understanding, several technical issues, needs guidance
+        • 3-4: Developing - Significant technical gaps, fundamental misunderstandings
+        • 0-2: Poor - Lacks basic technical knowledge, cannot apply concepts
+
+        CODE IMPLEMENTATION (0-10):
+        • 9-10: Exceptional - Production-ready, clean, maintainable, follows best practices
+        • 7-8: Strong - Clean structure, readable, minor style issues
+        • 5-6: Competent - Works but needs refactoring, some quality issues
+        • 3-4: Developing - Poorly structured, hard to read, significant problems
+        • 0-2: Poor - Unreadable, buggy, or minimal code
+
+        CALCULATE TOTAL SCORE (0-40):
+        Add all category scores together.
+
+        DETERMINE OVERALL ASSESSMENT:
+        • Strong Hire: 34-40 points
+        • Hire: 28-33 points  
+        • No Hire: 20-27 points
+        • Strong No Hire: 0-19 points
+
+        For feedback, be specific and actionable. Mention concrete examples from their response.
+
+        Return only valid JSON, no other text.
+        """
+# {
+        # "student_id": "string",
+        # "question_id": "string",
+        # "category_scores": {
+        #     "communication": "integer 0-10",
+        #     "problem_solving": "integer 0-10", 
+        #     "technical_competency": "integer 0-10",
+        #     "code_implementation": "integer 0-10"
+        # },
+        # "total_score": "integer 0-40",
+        # "overall_assessment": "string: 'Strong Hire', 'Hire', 'No Hire', 'Strong No Hire'",
+        # "category_feedback": {
+        #     "communication": "string",
+        #     "problem_solving": "string",
+        #     "technical_competency": "string", 
+        #     "code_implementation": "string"
+        # },
+        # "detailed_feedback": {
+        #     "strengths": "string",
+        #     "areas_for_improvement": "string",
+        #     "specific_recommendations": "string"
+        # }
+        # }
+
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[

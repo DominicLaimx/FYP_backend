@@ -793,7 +793,8 @@ def final_evaluation():
     # Strip down the result to just the 2 keys you care about
         feedback_only = {
             "final_evaluation": final_result.get("final_evaluation", {}),
-            "detailed_feedback": final_result.get("detailed_feedback", {})
+            "detailed_feedback": final_result.get("detailed_feedback", {}),
+            "scores": final_result.get("scores", {})
         }
 
         update_success = update_user_progress_by_email(
