@@ -21,6 +21,7 @@ class EvaluationCategory(BaseModel):
     communication: str
     problem_solving: str
     technical_competency: str
+    code_implementation: str
     examples_of_what_went_well: str
 
 class EvaluationSchema(BaseModel):
@@ -28,6 +29,8 @@ class EvaluationSchema(BaseModel):
     question_id: str
     final_evaluation: EvaluationCategory
     detailed_feedback: EvaluationCategory
+    total_score:str
+    overall_assessment:str
 
 def evaluation_agent(state: dict) -> dict:
     """
@@ -39,37 +42,37 @@ def evaluation_agent(state: dict) -> dict:
 
     # Instruct GPT to output valid JSON that matches our Pydantic schema, no extra keys
     # Make sure the prompt includes the relevant info: question, summary, code
-    prompt = f"""
-You are an AI evaluation agent for a coding interview I need you to be extremely strict! 
-Produce your answer as valid JSON ONLY, matching this schema exactly:
+#     prompt = f"""
+# You are an AI evaluation agent for a coding interview I need you to be extremely strict! 
+# Produce your answer as valid JSON ONLY, matching this schema exactly:
 
-EvaluationSchema:
-- student_id (string)
-- question_id (string)
-- final_evaluation (EvaluationCategory):
-    * communication (string)
-    * problem_solving (string)
-    * technical_competency (string)
-    * examples_of_what_went_well (string)
-- detailed_feedback (EvaluationCategory):
-    * communication (string)
-    * problem_solving (string)
-    * technical_competency (string)
-    * examples_of_what_went_well (string)
-- feedback and examples of what they said / coded well and what they could've done better
+# EvaluationSchema:
+# - student_id (string)
+# - question_id (string)
+# - final_evaluation (EvaluationCategory):
+#     * communication (string)
+#     * problem_solving (string)
+#     * technical_competency (string)
+#     * examples_of_what_went_well (string)
+# - detailed_feedback (EvaluationCategory):
+#     * communication (string)
+#     * problem_solving (string)
+#     * technical_competency (string)
+#     * examples_of_what_went_well (string)
+# - feedback and examples of what they said / coded well and what they could've done better
 
-NO extra keys, no markdown.
+# NO extra keys, no markdown.
 
-Context you have:
-- Interview Question: {input_data["interview_question"]}
-- User's Summary: {input_data["summary_of_past_response"]}
-- User's Code: {input_data["new_code_written"]}
+# Context you have:
+# - Interview Question: {input_data["interview_question"]}
+# - User's Summary: {input_data["summary_of_past_response"]}
+# - User's Code: {input_data["new_code_written"]}
 
-Scoring categories:
-- "Strong Hire", "Hire", "No Hire", "Strong No Hire"
+# Scoring categories:
+# - "Strong Hire", "Hire", "No Hire", "Strong No Hire"
 
-Only output valid JSON, no code blocks, no quotes around keys besides JSON structure.
-    """
+# Only output valid JSON, no code blocks, no quotes around keys besides JSON structure.
+#     """
 
     prompt = f"""
         You are an AI evaluation agent for a coding interview.
@@ -90,13 +93,8 @@ Only output valid JSON, no code blocks, no quotes around keys besides JSON struc
             * technical_competency (string)
             * code_implementation (string)
             * examples_of_what_went_well (string)
-        - scores:
-            * communication_score (int)
-            * problem_solving_score (int)
-            * technical_competency_score (int)
-            * code_implementation_score (int)
-            * total_score (int)
-            * overall_assessment (string)
+        - total_score (string)
+        - overall_assessment (string)
             
         - feedback and examples of what they said / coded well and what they could've done better
         
