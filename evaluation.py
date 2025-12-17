@@ -40,43 +40,9 @@ def evaluation_agent(state: dict) -> dict:
     """
     input_data = state["input"][-1]
 
-    # Instruct GPT to output valid JSON that matches our Pydantic schema, no extra keys
-    # Make sure the prompt includes the relevant info: question, summary, code
-#     prompt = f"""
-# You are an AI evaluation agent for a coding interview I need you to be extremely strict! 
-# Produce your answer as valid JSON ONLY, matching this schema exactly:
-
-# EvaluationSchema:
-# - student_id (string)
-# - question_id (string)
-# - final_evaluation (EvaluationCategory):
-#     * communication (string)
-#     * problem_solving (string)
-#     * technical_competency (string)
-#     * examples_of_what_went_well (string)
-# - detailed_feedback (EvaluationCategory):
-#     * communication (string)
-#     * problem_solving (string)
-#     * technical_competency (string)
-#     * examples_of_what_went_well (string)
-# - feedback and examples of what they said / coded well and what they could've done better
-
-# NO extra keys, no markdown.
-
-# Context you have:
-# - Interview Question: {input_data["interview_question"]}
-# - User's Summary: {input_data["summary_of_past_response"]}
-# - User's Code: {input_data["new_code_written"]}
-
-# Scoring categories:
-# - "Strong Hire", "Hire", "No Hire", "Strong No Hire"
-
-# Only output valid JSON, no code blocks, no quotes around keys besides JSON structure.
-#     """
-
     prompt = f"""
         You are an AI evaluation agent for a coding interview.
-        Output valid JSON only with this exact structure (no markdown, no extra keys):
+        Output valid JSON only matching this evaluation schema (no markdown, no extra keys):
 
         EvaluationSchema:
         - student_id (string)
@@ -146,6 +112,40 @@ def evaluation_agent(state: dict) -> dict:
 
         Return only valid JSON, no other text.
         """
+        # Instruct GPT to output valid JSON that matches our Pydantic schema, no extra keys
+    # Make sure the prompt includes the relevant info: question, summary, code
+#     prompt = f"""
+# You are an AI evaluation agent for a coding interview I need you to be extremely strict! 
+# Produce your answer as valid JSON ONLY, matching this schema exactly:
+
+# EvaluationSchema:
+# - student_id (string)
+# - question_id (string)
+# - final_evaluation (EvaluationCategory):
+#     * communication (string)
+#     * problem_solving (string)
+#     * technical_competency (string)
+#     * examples_of_what_went_well (string)
+# - detailed_feedback (EvaluationCategory):
+#     * communication (string)
+#     * problem_solving (string)
+#     * technical_competency (string)
+#     * examples_of_what_went_well (string)
+# - feedback and examples of what they said / coded well and what they could've done better
+
+# NO extra keys, no markdown.
+
+# Context you have:
+# - Interview Question: {input_data["interview_question"]}
+# - User's Summary: {input_data["summary_of_past_response"]}
+# - User's Code: {input_data["new_code_written"]}
+
+# Scoring categories:
+# - "Strong Hire", "Hire", "No Hire", "Strong No Hire"
+
+# Only output valid JSON, no code blocks, no quotes around keys besides JSON structure.
+#     """
+
 # {
         # "student_id": "string",
         # "question_id": "string",
