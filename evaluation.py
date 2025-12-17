@@ -183,9 +183,14 @@ def evaluation_agent(state: dict) -> dict:
 
     # Parse JSON
     try:
+        
         parsed = json.loads(raw_text)
+        if "EvaluationSchema" in parsed:
+            inner_data = parsed["EvaluationSchema"]  # Extract the actual evaluation data
+        else:
+            inner_data = parsed
         # Validate with Pydantic
-        evaluation_obj = EvaluationSchema(**parsed)
+        evaluation_obj = EvaluationSchema(**inner_data)
         state["evaluation_result"] = evaluation_obj.dict()
     except (json.JSONDecodeError, ValueError) as e:
         state["evaluation_result"] = {
