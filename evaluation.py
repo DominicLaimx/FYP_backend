@@ -82,21 +82,21 @@ Only output valid JSON, no code blocks, no quotes around keys besides JSON struc
             * communication (string)
             * problem_solving (string)
             * technical_competency (string)
-            * code implementation (string)
+            * code_implementation (string)
             * examples_of_what_went_well (string)
         - detailed_feedback (EvaluationCategory):
             * communication (string)
             * problem_solving (string)
             * technical_competency (string)
-            * code implementation (string)
+            * code_implementation (string)
             * examples_of_what_went_well (string)
         - scores:
-            * communication score (int)
-            * problem_solving score (int)
-            * technical_competency score (int)
-            * code implementation score (int)
-            * total score (int)
-            * overall assessment (string)
+            * communication_score (int)
+            * problem_solving_score (int)
+            * technical_competency_score (int)
+            * code_implementation_score (int)
+            * total_score (int)
+            * overall_assessment (string)
             
         - feedback and examples of what they said / coded well and what they could've done better
         
