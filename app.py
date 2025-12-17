@@ -794,7 +794,8 @@ def final_evaluation():
         feedback_only = {
             "final_evaluation": final_result.get("final_evaluation", {}),
             "detailed_feedback": final_result.get("detailed_feedback", {}),
-            "scores": final_result.get("scores", {})
+            "scores": final_result.get("total_score", {}),
+            "overall_assessment": final_result.get("overall_assessment", {})
         }
 
         update_success = update_user_progress_by_email(
