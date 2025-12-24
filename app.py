@@ -561,7 +561,102 @@ def save_recording():
 
     except Exception as e:
         return apply_cors(jsonify({'error': str(e)}))
+
+# drive_service.py - Your reusable Drive service
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+import io
+import os
+import pickle
+import base64
+
+SCOPES = ['https://www.googleapis.com/auth/drive']
+
+class DriveService:
+    def __init__(self, token_pickle_b64=None, credentials_path='credentials.json'):
+        self.token_pickle_b64 = token_pickle_b64
+        self.credentials_path = credentials_path
+        self.service = self._get_drive_service()
     
+    def _get_drive_service(self):
+        creds = None
+        # Use env var token for production
+        if self.token_pickle_b64:
+            token_data = base64.b64decode(self.token_pickle_b64)
+            creds = pickle.loads(token_data)
+        
+        # Fallback to local token.pickle (local dev)
+        elif os.path.exists('token.pickle'):
+            with open('token.pickle', 'rb') as token:
+                creds = pickle.load(token)
+        
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    self.credentials_path, SCOPES)
+                creds = flow.run_local_server(port=8080)
+            
+            # Save for production use
+            with open('token.pickle', 'wb') as token:
+                pickle.dump(creds, token)
+        
+        return build('drive', 'v3', credentials=creds)
+    
+    def upload_video(self, file_path, folder_name="Videos", user_id=None):
+        folder_id = self.create_or_get_folder(folder_name)
+        
+        file_metadata = {
+            'name': f"{user_id}_{os.path.basename(file_path)}" if user_id else os.path.basename(file_path),
+            'parents': [folder_id]
+        }
+        
+        media = MediaFileUpload(file_path, resumable=True)
+        file = self.service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, webViewLink, webContentLink'
+        ).execute()
+        
+        self.make_public(file['id'])
+        return {
+            'file_id': file['id'],
+            'public_url': f"https://drive.google.com/uc?id={file['id']}",
+            'view_url': file['webViewLink']
+        }
+    
+    def make_public(self, file_id):
+        self.service.permissions().create(
+            fileId=file_id,
+            body={'role': 'reader', 'type': 'anyone'}
+        ).execute()
+    
+    def create_or_get_folder(self, folder_name):
+        results = self.service.files().list(
+            q=f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder'",
+            fields="files(id, name)").execute()
+        
+        folders = results.get('files', [])
+        if folders:
+            return folders[0]['id']
+        
+        folder_metadata = {
+            'name': folder_name,
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        folder = self.service.files().create(body=folder_metadata, fields='id').execute()
+        return folder['id']
+    
+    def list_user_videos(self, user_id):
+        folder_id = self.create_or_get_folder("Videos")
+        results = self.service.files().list(
+            q=f"'{folder_id}' in parents and name contains '{user_id}'",
+            fields="files(id, name)").execute()
+        return results.get('files', [])
+
 @app.route('/questions/<question_type>', methods=['GET', 'OPTIONS'])
 def fetch_questions(question_type):
     """API to get all questions."""
