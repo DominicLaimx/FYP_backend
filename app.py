@@ -527,42 +527,6 @@ def respond():
 
     return apply_cors(Response(generate_stream(), mimetype='text/plain'))
 
-@app.route('/save_recording', methods=['POST', 'OPTIONS'])
-def save_recording():
-    # session_id = request.form.get('session_id')
-    video_file = request.files['video']
-    with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
-        # Read the file bytes
-        video_bytes = video_file.read()
-        tmp.write(video_bytes)
-        temp_path = tmp.name
-    # if request.method == "OPTIONS":
-    #     return apply_cors(jsonify({"message": "CORS Preflight OK"}))
-
-    # data = request.json
-    # session_id = data.get("session_id")
-    # filename = data.get("filename")
-    
-    
-    # return jsonify(results)
-
-    # if not session_id or session_id not in session_store:
-    #     return apply_cors(jsonify({"error": "Invalid session_id"}))
-    try:
-        results = analyze_interview_video(temp_path)
-            
-        results['session_info'] = {
-            # 'session_id': session_id,
-            'file_size_bytes': len(video_bytes)
-        }
-        # response = get_upload_url(filename)
-        # return apply_cors(jsonify(response))
-        return apply_cors(jsonify(results))
-
-    except Exception as e:
-        return apply_cors(jsonify({'error': str(e)}))
-
-# drive_service.py - Your reusable Drive service
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -656,6 +620,50 @@ class DriveService:
             q=f"'{folder_id}' in parents and name contains '{user_id}'",
             fields="files(id, name)").execute()
         return results.get('files', [])
+TOKEN_PICKLE_B64 = os.getenv("GOOGLE_TOKEN_PICKLE")
+drive = DriveService(token_pickle_b64=TOKEN_PICKLE_B64)
+
+@app.route('/save_recording', methods=['POST', 'OPTIONS'])
+def save_recording():
+    # session_id = request.form.get('session_id')
+    video_file = request.files['video']
+    with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
+        # Read the file bytes
+        video_bytes = video_file.read()
+        tmp.write(video_bytes)
+        temp_path = tmp.name
+        
+        # Upload to Drive
+        result = drive.upload_video(temp_path, user_id="DOM")
+        # save_id(result["file_id"])
+        
+
+    # if request.method == "OPTIONS":
+    #     return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+
+    # data = request.json
+    # session_id = data.get("session_id")
+    # filename = data.get("filename")
+    
+    
+    # return jsonify(results)
+
+    # if not session_id or session_id not in session_store:
+    #     return apply_cors(jsonify({"error": "Invalid session_id"}))
+    try:
+        results = analyze_interview_video(temp_path)
+            
+        results['session_info'] = {
+            # 'session_id': session_id,
+            'file_size_bytes': len(video_bytes)
+        }
+        # response = get_upload_url(filename)
+        # return apply_cors(jsonify(response))
+        return apply_cors(jsonify(results))
+
+    except Exception as e:
+        return apply_cors(jsonify({'error': str(e)}))
+
 
 @app.route('/questions/<question_type>', methods=['GET', 'OPTIONS'])
 def fetch_questions(question_type):
