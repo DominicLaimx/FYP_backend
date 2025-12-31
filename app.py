@@ -620,6 +620,22 @@ class DriveService:
             q=f"'{folder_id}' in parents and name contains '{user_id}'",
             fields="files(id, name)").execute()
         return results.get('files', [])
+    
+    def download_video(self,file_id):
+        """Download video from Google Drive by file ID"""
+        
+        request = self.service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+            print(f"Download {int(status.progress() * 100)}%")
+
+        webm_blob = fh.getvalue()
+
+        return webm_blob
 TOKEN_PICKLE_B64 = os.getenv("GOOGLE_TOKEN_PICKLE")
 drive = DriveService(token_pickle_b64=TOKEN_PICKLE_B64)
 

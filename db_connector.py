@@ -305,7 +305,15 @@ def get_user_feedback_history(user_id: str):
                     "question_id": qid,
                     "question_text": question_map.get(qid, "Unknown Question"),
                     "final_evaluation": entry.get("final_evaluation", {}),
-                    "detailed_feedback": entry.get("detailed_feedback", {})
+                    "detailed_feedback": entry.get("detailed_feedback", {}),
+
+                    # Optional top-level fields if you store them
+
+                    "total_score_0_100": entry.get("total_score_0_100"),
+
+                    "overall_assessment": entry.get("overall_assessment"),
+
+                    "hire_likelihood_percent": entry.get("hire_likelihood_percent"),
                 })
 
         return feedback_entries
