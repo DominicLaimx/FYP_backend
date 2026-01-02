@@ -1,5 +1,3 @@
-# prompt_templates.py
-
 PROMPT_TEMPLATES = {
     "code_practice": {
         "guidance": """
