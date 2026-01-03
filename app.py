@@ -20,13 +20,12 @@ from pydantic import BaseModel
 import tempfile
 import azure.cognitiveservices.speech as speechsdk
 from azure.cognitiveservices.speech.audio import AudioOutputStream
-import tempfile
 import io
 import re
 from db_connector import get_random_question, get_all_questions, get_question_by_id, get_all_summaries
 from db_connector import get_user, initialise_db_pool, get_upload_url
 from user_login import create_user
-from evaluation import evaluation_agent 
+from evaluation import evaluation_agent
 from evaluation import partial_evaluation_agent, analyze_interview_video
 from db_connector import get_user_feedback_history, update_user_progress_by_email, delete_history_by_email
 from prompt_templates import PROMPT_TEMPLATES
@@ -34,19 +33,24 @@ from google.cloud import texttospeech
 import subprocess
 
 app = Flask(__name__)
+
 # Apply CORS with the correct origin and credentials support:
-CORS(app, resources={r"/*": {"origins": "https://mango-bush-0c99ac700.6.azurestaticapps.net"}}, supports_credentials=True)
+CORS(
+    app,
+    resources={r"/*": {"origins": "https://mango-bush-0c99ac700.6.azurestaticapps.net"}},
+    supports_credentials=True
+)
 
 # ✅ Handle CORS for all requests
 @app.after_request
 def apply_cors(response):
     """Ensure CORS headers are applied correctly."""
-    response.headers["Access-Control-Allow-Origin"] = "https://mango-bush-0c99ac700.6.azurestaticapps.net"  # ✅ Must be specific origin
+    response.headers["Access-Control-Allow-Origin"] = "https://mango-bush-0c99ac700.6.azurestaticapps.net"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Access-Control-Allow-Credentials"] = "true"  # ✅ Required when using `credentials: "include"
-
+    response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
+
 
 # Initialize Azure OpenAI client
 endpoint = os.getenv("OPENAI_ENDPOINT")
@@ -54,18 +58,16 @@ key = os.getenv("OPENAI_SECRETKEY")
 SECRET_KEY = os.getenv("PWD_SECRET_KEY")
 
 class State(TypedDict):
-    input: Annotated[List[dict], operator.add]  # Stores previous discussions as list of JSON objects
-    decision: Annotated[List[str], operator.add]  # Allows multiple decisions per execution step
-    output: Annotated[List[str], operator.add]  # Stores only the latest response
+    input: Annotated[List[dict], operator.add]
+    decision: Annotated[List[str], operator.add]
+    output: Annotated[List[str], operator.add]
     mode: str
 
-# Initialize StateGraph with the correct state schema
 workflow = StateGraph(State)
 
-# Initialize Azure OpenAI client
 client = AzureOpenAI(
-  azure_endpoint=endpoint, 
-  api_key=key,  
+  azure_endpoint=endpoint,
+  api_key=key,
   api_version="2024-02-01"
 )
 
@@ -78,32 +80,43 @@ tts_hd_client = AzureOpenAI(
 
 realtime_client = AzureOpenAI(
     api_key=os.getenv("OPENAI_SECRETKEY"),
-    azure_endpoint= os.getenv("OPENAI_ENDPOINT"),
+    azure_endpoint=os.getenv("OPENAI_ENDPOINT"),
     api_version="2024-10-01-preview"
 )
 
 whisper_client = AzureOpenAI(
     api_key=os.getenv("OPENAI_SECRETKEY"),
-    azure_endpoint= os.getenv("OPENAI_ENDPOINT"),
+    azure_endpoint=os.getenv("OPENAI_ENDPOINT"),
     api_version="2024-06-01"
 )
+
+def _get_mode_templates(mode: str) -> Dict[str, str]:
+    """
+    Fixes system-design "no response" issues caused by missing prompt templates.
+    If frontend sends an unknown mode, we fall back to code_interview.
+    """
+    if not mode:
+        return PROMPT_TEMPLATES["code_interview"]
+    return PROMPT_TEMPLATES.get(mode) or PROMPT_TEMPLATES["code_interview"]
+
+
 # __________________________ DEFINING NODES __________________________
 
 def node3(state: State) -> State:
-    input_data = state["input"][-1]  # Take the latest input only
+    input_data = state["input"][-1]
     prompt = f"""
-        You are an interviewer conducting a Software Engineering interview. 
+You are an interviewer conducting a Software Engineering interview.
 
-        The input is: {input_data} 
+The input is: {input_data}
 
-        Classify the user's response into one of the following categories:
-        1 → User is lost and needs guidance
-        2 → User asks question seeking guidance or clarification
-        3 → User has given a response and you need to evaluate it
-        4 → User is not talking about interview but needs a response
+Classify the user's response into one of the following categories:
+1 → User is lost and needs guidance
+2 → User asks question seeking guidance or clarification
+3 → User has given a response and you need to evaluate it
+4 → User is not talking about interview but needs a response
 
-        **Output only the number (1, 2, 3, 4) with no additional text, explanation, or formatting.**
-    """
+Output only the number (1, 2, 3, 4) with no additional text.
+""".strip()
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -113,15 +126,15 @@ def node3(state: State) -> State:
         ],
     )
 
-    decision = response.choices[0].message.content.strip()
-
+    decision = (response.choices[0].message.content or "").strip()
     print("Decision is " + decision)
     state["decision"].append(decision)
     return state
 
+
 def router(state: State) -> Dict:
-    decision = state["decision"][-1]  # Take the latest decision
-    
+    decision = state["decision"][-1]
+
     if decision == "1":
         return {"next": "node_4"}
     elif decision == "2":
@@ -130,109 +143,120 @@ def router(state: State) -> Dict:
         return {"next": "node_6"}
     elif decision == "4":
         return {"next": "node_8"}
-    elif decision == "5":
-        return {"next": "node_9"}
     else:
         return {"next": "node_7"}
 
+
 def node4(state: State) -> State:
     input_data = state["input"][-1]
-    mode = state["mode"]
-    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
-    {PROMPT_TEMPLATES[mode]["guidance"]}
-    """
-    
+    mode = state.get("mode", "")
+    templates = _get_mode_templates(mode)
+
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. {templates["guidance"]}"""
+
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[{"role": "system", "content": "You are a helpful assistant."},
-                  {"role": "user", "content": prompt}],
-        stream=True  # ✅ Enable streaming
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        stream=True
     )
 
     response_text = ""
     for chunk in response:
         if not chunk.choices or not chunk.choices[0].delta:
-            continue  # ✅ Skip empty chunks safely
+            continue
         content_piece = chunk.choices[0].delta.content
         if content_piece:
             response_text += content_piece
 
     state["output"] = [response_text]
     return state
+
 
 def node5(state: State) -> State:
     input_data = state["input"][-1]
-    mode = state["mode"]
-    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
-    {PROMPT_TEMPLATES[mode]["question"]}
-    """
-    
+    mode = state.get("mode", "")
+    templates = _get_mode_templates(mode)
+
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. {templates["question"]}"""
+
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[{"role": "system", "content": "You are a helpful assistant."},
-                  {"role": "user", "content": prompt}],
-        stream=True  # ✅ Enable streaming
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        stream=True
     )
 
     response_text = ""
     for chunk in response:
         if not chunk.choices or not chunk.choices[0].delta:
-            continue  # ✅ Skip empty chunks safely
+            continue
         content_piece = chunk.choices[0].delta.content
         if content_piece:
             response_text += content_piece
 
     state["output"] = [response_text]
     return state
+
 
 def node6(state: State) -> State:
     input_data = state["input"][-1]
-    mode = state["mode"]
-    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
-    {PROMPT_TEMPLATES[mode]["evaluation"]}
-    """
+    mode = state.get("mode", "")
+    templates = _get_mode_templates(mode)
+
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. {templates["evaluation"]}"""
 
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[{"role": "system", "content": "You are a helpful assistant."},
-                  {"role": "user", "content": prompt}],
-        stream=True  # ✅ Enable streaming
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        stream=True
     )
 
     response_text = ""
     for chunk in response:
         if not chunk.choices or not chunk.choices[0].delta:
-            continue  # ✅ Skip empty chunks safely
+            continue
         content_piece = chunk.choices[0].delta.content
         if content_piece:
             response_text += content_piece
 
     state["output"] = [response_text]
     return state
+
 
 def node7(state: State) -> State:
     print("Interview is ending...")
     state["output"] = ["Goodbye!"]
     return state
 
+
 def node8(state: State) -> State:
     input_data = state["input"][-1]
-    mode = state["mode"]
-    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.\
-    {PROMPT_TEMPLATES[mode]["offtopic"]}
-    """
-    
+    mode = state.get("mode", "")
+    templates = _get_mode_templates(mode)
+
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. {templates["offtopic"]}"""
+
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[{"role": "system", "content": "You are a helpful assistant."},
-                  {"role": "user", "content": prompt}],
-        stream=True  # ✅ Enable streaming
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        stream=True
     )
 
     response_text = ""
     for chunk in response:
         if not chunk.choices or not chunk.choices[0].delta:
-            continue  # ✅ Skip empty chunks safely
+            continue
         content_piece = chunk.choices[0].delta.content
         if content_piece:
             response_text += content_piece
@@ -240,142 +264,86 @@ def node8(state: State) -> State:
     state["output"] = [response_text]
     return state
 
-def node9(state: State) -> State:
-    input_data = state["input"][-1]
-    prompt = f"Tthank them for the interview and say bye bye."
-    
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "system", "content": "You are a helpful assistant."},
-                  {"role": "user", "content": prompt}]
-    )
 
-    state["output"] = [response.choices[0].message.content]
-    return state
-# ______________________________________________________________________________________________________________________________________
-# ______________________________________________________________________________________________________________________________________
 # __________________________________________________________ HELPER FUNCTIONS __________________________________________________________
-# ______________________________________________________________________________________________________________________________________
-# ______________________________________________________________________________________________________________________________________
 
 def summarize_conversation(session_id: str, user_input: str, new_code: str) -> str:
     """
-    Given the current session state, user input, and new code,
-    generate a concise updated summary of the conversation using OpenAI.
-    Returns the updated conversation summary.
+    Summary used ONLY to keep the interviewer chat flowing.
+    Evaluation does NOT use this summary anymore (uses real transcript + code).
     """
     current_state = session_store[session_id]
     past_summary = current_state.get("interaction_summary", "")
-    last_bot_response = (current_state["output"][-1]
-                         if current_state.get("output") else "No response yet")
+    last_bot_response = (current_state["output"][-1] if current_state.get("output") else "No response yet")
 
     summary_prompt = f"""
-    Given the following conversation history, generate a structured and concise summary:
+Given the following conversation history, generate a structured and concise summary.
 
-    Conversation History:
-    {past_summary}
+Conversation History:
+{past_summary}
 
-    Latest Interaction:
-    Bot's Response: {last_bot_response}
-    User's Response: {user_input}
-    User's Code: {new_code}
+Latest Interaction:
+Bot's Response: {last_bot_response}
+User's Response: {user_input}
+User's Code: {new_code}
 
-    Summarize in 2-3 sentences, keeping it clear and concise.
-    """
+Summarize in 2-3 sentences, keeping it clear and concise.
+""".strip()
 
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": "You are a helpful assistant that summarizes conversations."},
             {"role": "user", "content": summary_prompt}
-        ]
+        ],
+        temperature=0.2
     )
 
-    new_summary = response.choices[0].message.content.strip()
+    new_summary = (response.choices[0].message.content or "").strip()
     return new_summary
 
-def update_conversation_state(session_id: str, new_summary: str,
-                              user_input: str, new_code: str) -> str:
-    """
-    Uses the updated summary, user input, and code to invoke the state machine
-    and store the resulting state in the session. Returns the bot's latest response.
-    """
-    current_state = session_store[session_id]
-
-    # Build the next input for the workflow
-    next_input = {
-        "interview_question": current_state["input"][0]["interview_question"],
-        "summary_of_past_response": new_summary,
-        "new_code_written": new_code,
-        "user_input": user_input
-    }
-
-    # Invoke the state machine
-    next_state = app_graph.invoke({"input": [next_input], "decision": [], "output": []})
-    bot_response = next_state.get("output", ["No response"])[-1]
-
-    # Update the session store with new state
-    session_store[session_id] = {
-        "input": [next_input],
-        "decision": next_state["decision"],
-        "output": [bot_response],
-        # Keep or update any other session fields, e.g. interaction_summary
-        "interaction_summary": new_summary,
-        "start_time": current_state.get("start_time"),
-        "duration": current_state.get("duration", 0)
-    }
-
-    return bot_response
 
 def evaluate_response_partially(session_id: str):
     """
-    Calls the partial_evaluation_agent to produce a simpler
-    incremental judgment. Stores it in session_store under partial_eval_history.
+    Calls the partial_evaluation_agent using REAL transcript + code (ground truth).
     """
     current_data = session_store[session_id]
-    
-    # The last "input" from the user (just stored in session_store)
     latest_input = current_data["input"][-1]
 
-    # If we want continuity, pass the last partial eval if it exists
     partial_history = current_data.get("partial_eval_history", [])
     last_partial_eval = partial_history[-1] if partial_history else {}
 
-    # Build the state for partial evaluator
     partial_eval_state = {
         "input": [{
-            "interview_question": latest_input["interview_question"],
-            "summary_of_past_response": latest_input["summary_of_past_response"],
-            "new_code_written": latest_input["new_code_written"],
+            "student_id": current_data.get("student_id", "unknown"),
+            "question_id": str(current_data.get("question_id", "unknown")),
+            "interview_question": latest_input.get("interview_question", ""),
+            "active_requirements": latest_input.get("interview_question", ""),
+            "summary_of_past_response": latest_input.get("summary_of_past_response", ""),
+            "user_input": latest_input.get("user_input", ""),
+            "new_code_written": latest_input.get("new_code_written", ""),
+            "candidate_code": latest_input.get("new_code_written", ""),
+            "transcript": current_data.get("transcript", []),
+            "candidate_code_history_tail": current_data.get("code_history", [])[-6:],
             "previous_partial_eval": last_partial_eval
         }],
         "decision": [],
         "output": []
     }
 
-    # Call the partial evaluator
     updated_state = partial_evaluation_agent(partial_eval_state)
-
-    # Extract the result
     result = updated_state.get("partial_evaluation_result", {})
 
-    # Store it in the session
     if "partial_eval_history" not in current_data:
         current_data["partial_eval_history"] = []
     current_data["partial_eval_history"].append(result)
-
-    # Optionally store the latest partial eval in a simpler key
     current_data["current_partial_evaluation"] = result
 
     return result
 
-# ______________________________________________________________________________________________________________________________________________
-# ______________________________________________________________________________________________________________________________________________
-# __________________________________________________________ ADDING NODES TO WORKFLOW __________________________________________________________
-# ______________________________________________________________________________________________________________________________________________
-# ______________________________________________________________________________________________________________________________________________
 
-# Add nodes to the workflow
+# __________________________________________________________ ADDING NODES TO WORKFLOW __________________________________________________________
+
 workflow.add_node("node_3", node3)
 workflow.add_node("router", router)
 workflow.add_node("node_4", node4)
@@ -384,7 +352,6 @@ workflow.add_node("node_6", node6)
 workflow.add_node("node_7", node7)
 workflow.add_node("node_8", node8)
 
-# Route decisions properly
 workflow.add_edge("node_3", "router")
 workflow.add_conditional_edges(
     "router",
@@ -398,7 +365,6 @@ workflow.add_conditional_edges(
     }
 )
 
-# Set entry and termination points
 workflow.set_entry_point("node_3")
 workflow.set_finish_point("node_7")
 
@@ -406,78 +372,89 @@ app_graph = workflow.compile()
 
 # ✅ Store Session States
 session_store = {}
-# ___________________________________________________________________________________________________________________________________
-# ___________________________________________________________________________________________________________________________________
-# __________________________________________________________ API ENDPOINTS __________________________________________________________
-# ___________________________________________________________________________________________________________________________________
-# ___________________________________________________________________________________________________________________________________
 
+
+# __________________________________________________________ API ENDPOINTS __________________________________________________________
 
 @app.route('/start', methods=['POST', 'OPTIONS'])
 def start_interview():
     """Handles interview initialization and fetches a specific question based on question_id."""
-    
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
-    
-    data = request.json
-    question_id = data.get("question_id")  # ✅ Get the selected question ID from the frontend
-    mode = data.get("mode")
+        return jsonify({"message": "CORS Preflight OK"}), 204
+
+    data = request.json or {}
+    question_id = data.get("question_id")
+    mode = data.get("mode") or "code_interview"
 
     if not question_id:
-        return apply_cors(jsonify({"error": "No question_id provided"}), 400)
+        resp = jsonify({"error": "No question_id provided"})
+        resp.status_code = 400
+        return resp
 
-    question = get_question_by_id(question_id)  # ✅ Fetch the selected question
-
+    question = get_question_by_id(question_id)
     if not question:
-        return apply_cors(jsonify({"error": "Invalid question_id"}), 404)
+        resp = jsonify({"error": "Invalid question_id"})
+        resp.status_code = 404
+        return resp
 
-    # Generate a session ID
     session_id = str(int(time.time()))
+    question_text = question["question_text"]
 
-    # Store session details with the selected question
+    # Real transcript: start with the interviewer stating the prompt.
+    transcript = [
+        {"role": "assistant", "content": f"Interview question: {question_text}".strip()}
+    ]
+
     session_store[session_id] = {
+        "question_id": int(question["id"]),
+        "student_id": "unknown",
         "input": [{
-            "interview_question": question["question_text"],  # ✅ Store the selected question
+            "interview_question": question_text,
             "summary_of_past_response": "The user has just started and has not written any code yet.",
             "new_code_written": "",
             "user_input": "",
-            
         }],
-        "interaction_summary": "",  # ✅ Initialize an empty conversation summary
+        "interaction_summary": "",
         "mode": mode,
         "decision": [],
         "output": [],
-        "start_time": time.time(),  # ✅ Store session start time
-        "duration": 0  # ✅ Initialize duration
+        "start_time": time.time(),
+        "duration": 0,
+        # ✅ NEW: ground-truth data used for evaluation (NO summaries)
+        "transcript": transcript,
+        "code_history": []
     }
 
-    return apply_cors(jsonify({
+    return jsonify({
         "session_id": session_id,
         "message": "Interview started!",
-        "question": question["question_text"],  # ✅ Send question to frontend
-        "example": question.get("example", ""),  # ✅ Send example to frontend
+        "question": question_text,
+        "example": question.get("example", ""),
         "constraint": question.get("reservations", ""),
         "difficulty": question.get("difficulty", ""),
-        "question_id": question["id"],  # ✅ Include question ID for tracking
-        "start_time": session_store[session_id]["start_time"]  # ✅ Send start time to frontend
-    }))
+        "question_id": question["id"],
+        "start_time": session_store[session_id]["start_time"]
+    })
+
 
 @app.route('/respond', methods=['POST', 'OPTIONS'])
 def respond():
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
-    data = request.json
+    data = request.json or {}
     session_id = data.get("session_id")
     if not session_id or session_id not in session_store:
-        return apply_cors(jsonify({"error": "Invalid session_id"}), 400)
+        resp = jsonify({"error": "Invalid session_id"})
+        resp.status_code = 400
+        return resp
 
-    user_input = data.get("user_input", "")
-    new_code_written = data.get("new_code_written", "")
+    user_input = data.get("user_input", "") or ""
+    new_code_written = data.get("new_code_written", "") or ""
+
     current_state = session_store[session_id]
     prev_summary = current_state.get("interaction_summary", "")
-    mode = current_state.get("mode", "")
+    mode = current_state.get("mode", "code_interview")
 
     next_input = {
         "interview_question": current_state["input"][0]["interview_question"],
@@ -488,6 +465,7 @@ def respond():
 
     @stream_with_context
     def generate_stream():
+        # Run interviewer response
         next_state = app_graph.invoke({
             "input": [next_input],
             "decision": [],
@@ -495,29 +473,42 @@ def respond():
             "mode": mode
         })
 
-        full_response = next_state.get("output", ["No response"])[-1]
-        
+        full_response = next_state.get("output", ["No response"])[-1] or ""
+
+        # Stream to frontend (word-by-word)
         sentence_buffer = ""
         for word in full_response.split():
             sentence_buffer += word + " "
             yield word + " "
             time.sleep(0.01)
 
-            # 🔍 Sentence boundary detection (basic)
             if re.search(r'[.!?]["\']?\s*$', sentence_buffer):
-                # 👇 This could push sentence to TTS queue (e.g., frontend or SSE)
                 yield f"[TTS_START]{sentence_buffer.strip()}[TTS_END]"
                 sentence_buffer = ""
 
-        # Edge case: leftover fragment
         if sentence_buffer.strip():
             yield f"[TTS_START]{sentence_buffer.strip()}[TTS_END]"
 
-        # Update session
+        # ✅ Update ground-truth transcript + code history (for evaluation)
+        if user_input.strip():
+            current_state.setdefault("transcript", []).append({"role": "user", "content": user_input.strip()})
+        if full_response.strip():
+            current_state.setdefault("transcript", []).append({"role": "assistant", "content": full_response.strip()})
+
+        # Track code snapshots (only if changed & non-empty)
+        if new_code_written.strip():
+            history = current_state.setdefault("code_history", [])
+            if not history or history[-1] != new_code_written:
+                history.append(new_code_written)
+
+        # Summary ONLY for chat continuity
         new_summary = summarize_conversation(session_id, user_input, new_code_written)
+
+        # Update session store
         session_store[session_id] = {
+            **current_state,
             "input": [next_input],
-            "decision": next_state["decision"],
+            "decision": next_state.get("decision", []),
             "output": [full_response],
             "mode": mode,
             "interaction_summary": new_summary,
@@ -525,14 +516,13 @@ def respond():
             "duration": current_state.get("duration", 0)
         }
 
-    return apply_cors(Response(generate_stream(), mimetype='text/plain'))
+    return Response(generate_stream(), mimetype='text/plain')
+
 
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-import io
-import os
 import pickle
 import base64
 
@@ -543,87 +533,77 @@ class DriveService:
         self.token_pickle_b64 = token_pickle_b64
         self.credentials_path = credentials_path
         self.service = self._get_drive_service()
-    
+
     def _get_drive_service(self):
         creds = None
-        # Use env var token for production
         if self.token_pickle_b64:
             token_data = base64.b64decode(self.token_pickle_b64)
             creds = pickle.loads(token_data)
-        
-        # Fallback to local token.pickle (local dev)
         elif os.path.exists('token.pickle'):
             with open('token.pickle', 'rb') as token:
                 creds = pickle.load(token)
-        
+
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_path, SCOPES)
+                flow = InstalledAppFlow.from_client_secrets_file(self.credentials_path, SCOPES)
                 creds = flow.run_local_server(port=8080)
-            
-            # Save for production use
+
             with open('token.pickle', 'wb') as token:
                 pickle.dump(creds, token)
-        
+
         return build('drive', 'v3', credentials=creds)
-    
+
     def upload_video(self, file_path, folder_name="Videos", user_id=None):
         folder_id = self.create_or_get_folder(folder_name)
-        
+
         file_metadata = {
             'name': f"{user_id}_{os.path.basename(file_path)}" if user_id else os.path.basename(file_path),
             'parents': [folder_id]
         }
-        
+
         media = MediaFileUpload(file_path, resumable=True)
         file = self.service.files().create(
             body=file_metadata,
             media_body=media,
             fields='id, webViewLink, webContentLink'
         ).execute()
-        
+
         self.make_public(file['id'])
         return {
             'file_id': file['id'],
             'public_url': f"https://drive.google.com/uc?id={file['id']}",
             'view_url': file['webViewLink']
         }
-    
+
     def make_public(self, file_id):
         self.service.permissions().create(
             fileId=file_id,
             body={'role': 'reader', 'type': 'anyone'}
         ).execute()
-    
+
     def create_or_get_folder(self, folder_name):
         results = self.service.files().list(
             q=f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder'",
             fields="files(id, name)").execute()
-        
+
         folders = results.get('files', [])
         if folders:
             return folders[0]['id']
-        
-        folder_metadata = {
-            'name': folder_name,
-            'mimeType': 'application/vnd.google-apps.folder'
-        }
+
+        folder_metadata = {'name': folder_name, 'mimeType': 'application/vnd.google-apps.folder'}
         folder = self.service.files().create(body=folder_metadata, fields='id').execute()
         return folder['id']
-    
+
     def list_user_videos(self, user_id):
         folder_id = self.create_or_get_folder("Videos")
         results = self.service.files().list(
             q=f"'{folder_id}' in parents and name contains '{user_id}'",
             fields="files(id, name)").execute()
         return results.get('files', [])
-    
-    def download_video(self,file_id):
-        """Download video from Google Drive by file ID"""
-        
+
+    def download_video(self, file_id):
         request = self.service.files().get_media(fileId=file_id)
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
@@ -633,288 +613,260 @@ class DriveService:
             status, done = downloader.next_chunk()
             print(f"Download {int(status.progress() * 100)}%")
 
-        webm_blob = fh.getvalue()
+        return fh.getvalue()
 
-        return webm_blob
 TOKEN_PICKLE_B64 = os.getenv("GOOGLE_TOKEN_PICKLE")
 drive = DriveService(token_pickle_b64=TOKEN_PICKLE_B64)
 
+
 @app.route('/save_recording', methods=['POST', 'OPTIONS'])
 def save_recording():
-    # session_id = request.form.get('session_id')
     video_file = request.files['video']
     with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
-        # Read the file bytes
         video_bytes = video_file.read()
         tmp.write(video_bytes)
         temp_path = tmp.name
-        
-        # Upload to Drive
-        result = drive.upload_video(temp_path, user_id="DOM")
-        # save_id(result["file_id"])
-        
 
-    # if request.method == "OPTIONS":
-    #     return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        _ = drive.upload_video(temp_path, user_id="DOM")
 
-    # data = request.json
-    # session_id = data.get("session_id")
-    # filename = data.get("filename")
-    
-    
-    # return jsonify(results)
-
-    # if not session_id or session_id not in session_store:
-    #     return apply_cors(jsonify({"error": "Invalid session_id"}))
     try:
         results = analyze_interview_video(temp_path)
-            
-        results['session_info'] = {
-            # 'session_id': session_id,
-            'file_size_bytes': len(video_bytes)
-        }
-        # response = get_upload_url(filename)
-        # return apply_cors(jsonify(response))
-        return apply_cors(jsonify(results))
-
+        results['session_info'] = {'file_size_bytes': len(video_bytes)}
+        return jsonify(results)
     except Exception as e:
-        return apply_cors(jsonify({'error': str(e)}))
+        resp = jsonify({'error': str(e)})
+        resp.status_code = 500
+        return resp
 
 
 @app.route('/questions/<question_type>', methods=['GET', 'OPTIONS'])
 def fetch_questions(question_type):
-    """API to get all questions."""
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
-
+        return jsonify({"message": "CORS Preflight OK"}), 204
     summaries = get_all_summaries(question_type)
-    return apply_cors(jsonify(summaries))
+    return jsonify(summaries)
+
 
 @app.route('/question/<int:question_id>', methods=['GET', 'OPTIONS'])
 def fetch_question_by_id(question_id):
-    """API to get a specific question by ID."""
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
-
+        return jsonify({"message": "CORS Preflight OK"}), 204
     question = get_question_by_id(question_id)
     if question:
-        return apply_cors(jsonify(question))
-    
-    return apply_cors(jsonify({"error": "Question not found"}), 404)
+        return jsonify(question)
+    resp = jsonify({"error": "Question not found"})
+    resp.status_code = 404
+    return resp
+
 
 @app.route('/get_random_question/<question_type>', methods=['GET', 'OPTIONS'])
 def get_random(question_type):
-    """API to get all questions."""
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
-
+        return jsonify({"message": "CORS Preflight OK"}), 204
     qn = get_random_question(question_type)
-    return apply_cors(jsonify(qn))
+    return jsonify(qn)
+
 
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
-    """Handles user login and sets a secure HTTP-only cookie."""
     if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS Preflight OK"})
-        return apply_cors(response)
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
     try:
-        data = request.json
+        data = request.json or {}
         email = data.get("email")
         password = data.get("password")
-        
-        user = get_user(email, password)  # Ensure this function exists
-        if not user:
-            response = jsonify({"error": "Invalid credentials"})
-            response.status_code = 401
-            return apply_cors(response)
 
-        # Generate JWT token
+        user = get_user(email, password)
+        if not user:
+            resp = jsonify({"error": "Invalid credentials"})
+            resp.status_code = 401
+            return resp
+
         token = jwt.encode(
             {"user_id": user["id"], "email": user["email"], "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1)},
-            SECRET_KEY, 
+            SECRET_KEY,
             algorithm="HS256"
         )
 
-        # Create HTTP-only cookie response
         response = make_response(jsonify({"message": "Login successful"}))
         response.set_cookie(
             "auth_token",
             token,
             httponly=True,
-            secure=True,  # ✅ Allow cookies over HTTP (only for testing)
+            secure=True,
             samesite="None",
             max_age=24 * 60 * 60
         )
-        return apply_cors(response)
+        return response
 
     except Exception as e:
         print(f"❌ ERROR in /login: {e}")
-        response = jsonify({"error": "Internal Server Error"})
-        response.status_code = 500
-        return apply_cors(response)
+        resp = jsonify({"error": "Internal Server Error"})
+        resp.status_code = 500
+        return resp
+
 
 @app.route('/register', methods=['POST', 'OPTIONS'])
 def register():
-    """Handles user registration with correct CORS headers for preflight requests."""
     if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS Preflight OK"})
-        response.status_code = 204  # ✅ FIXED: No Content
-        return apply_cors(response)
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         name = data.get("name")
         email = data.get("email")
         password = data.get("password")
 
         if not name or not email or not password:
-            response = jsonify({"error": "All fields are required"})
-            response.status_code = 400
-            return apply_cors(response)
+            resp = jsonify({"error": "All fields are required"})
+            resp.status_code = 400
+            return resp
 
         success = create_user(name, email, password)
 
         if success:
-            response = jsonify({"message": "User registered successfully!"})
-            response.status_code = 201
-            return apply_cors(response)
+            resp = jsonify({"message": "User registered successfully!"})
+            resp.status_code = 201
+            return resp
         else:
-            response = jsonify({"error": "Email already registered"})
-            response.status_code = 409
-            return apply_cors(response)
+            resp = jsonify({"error": "Email already registered"})
+            resp.status_code = 409
+            return resp
 
     except Exception as e:
         print(f"❌ ERROR in /register: {e}")
-        response = jsonify({"error": "Internal Server Error"})
-        response.status_code = 500
-        return apply_cors(response)  # ✅ Ensure CORS headers are applied
+        resp = jsonify({"error": "Internal Server Error"})
+        resp.status_code = 500
+        return resp
+
 
 @app.route('/initialise_db', methods=['GET', 'OPTIONS'])
 def initialise_db():
-    res = initialise_db_pool()
-    return res
+    if request.method == "OPTIONS":
+        return jsonify({"message": "CORS Preflight OK"}), 204
+    return initialise_db_pool()
+
 
 @app.route('/check-auth', methods=['GET', 'OPTIONS'])
 def check_auth():
-    """Checks if the user is authenticated based on the auth_token cookie."""
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
     token = request.cookies.get("auth_token")
     if not token:
-        response = jsonify({"error": "Not authenticated"})
-        response.status_code = 401
-        return apply_cors(response)
-
+        resp = jsonify({"error": "Not authenticated"})
+        resp.status_code = 401
+        return resp
 
     try:
-        decoded_token = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        return apply_cors(jsonify({"message": "Authenticated"}))  # ✅ 200 OK
+        _ = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        return jsonify({"message": "Authenticated"})
     except jwt.ExpiredSignatureError:
-        return apply_cors(jsonify({"error": "Token expired"}), 401)
+        resp = jsonify({"error": "Token expired"})
+        resp.status_code = 401
+        return resp
     except jwt.InvalidTokenError:
-        return apply_cors(jsonify({"error": "Invalid token"}), 401)
-    
+        resp = jsonify({"error": "Invalid token"})
+        resp.status_code = 401
+        return resp
+
+
 @app.route('/logout', methods=['POST', 'OPTIONS'])
 def logout():
-    """Logs the user out by clearing the auth_token cookie."""
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
     response = jsonify({"message": "Logout successful"})
     response.set_cookie(
-        "auth_token", 
-        "",  # Clear the cookie value
-        expires=0,  # Immediately expire the cookie
-        httponly=True, 
-        secure=True,  # Keep True for HTTPS, False for local testing if needed
+        "auth_token",
+        "",
+        expires=0,
+        httponly=True,
+        secure=True,
         samesite="Strict",
-        domain="fypbackend-b5gchph9byc4b8gt.canadacentral-01.azurewebsites.net",  # Use the same domain as when the cookie was set
-        path="/"  # Ensure the path matches
+        domain="fypbackend-b5gchph9byc4b8gt.canadacentral-01.azurewebsites.net",
+        path="/"
     )
-    return apply_cors(response)
+    return response
+
 
 @app.route('/partial-eval', methods=['POST', 'OPTIONS'])
 def partial_eval():
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
-    data = request.json
+    data = request.json or {}
     session_id = data.get("session_id")
     if not session_id or session_id not in session_store:
-        return apply_cors(jsonify({"error": "Invalid session_id"}), 400)
+        resp = jsonify({"error": "Invalid session_id"})
+        resp.status_code = 400
+        return resp
 
-    # Now call your partial evaluation logic
+    # Optional: allow frontend to attach student_id once known
+    student_id = data.get("student_id")
+    if student_id:
+        session_store[session_id]["student_id"] = student_id
+
     partial_evaluation = evaluate_response_partially(session_id)
+    return jsonify({"partial_evaluation": partial_evaluation})
 
-    return apply_cors(jsonify({
-        "partial_evaluation": partial_evaluation
-    }))
 
 @app.route("/final_evaluation", methods=["POST", "OPTIONS"])
 def final_evaluation():
-    """
-    Uses the entire conversation summary, user code, and partial_eval_history
-    to produce a final detailed evaluation with the existing 'evaluation_agent'.
-    """
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
-    data = request.json
+    data = request.json or {}
     session_id = data.get("session_id")
-    student_id = data.get("student_id")  # ✅ Ensure student_id is received
-    question_id = data.get("question_id")  # ✅ Ensure question_id is received    
-    
+    student_id = data.get("student_id")
+    question_id = data.get("question_id")
+
     print("Received session_id:", session_id)
-    print("Current session_store keys:", session_store.keys())  # Debugging prin    
+    print("Current session_store keys:", session_store.keys())
 
     if not session_id or session_id not in session_store:
-        response = jsonify({"error": "Invalid session_id"})
-        response.status_code = 400
-        return apply_cors(response)
-    
-    if not student_id or not question_id:
-        response = jsonify({"error": "Missing student_id or question_id"})
-        response.status_code = 400
-        return apply_cors(response)
+        resp = jsonify({"error": "Invalid session_id"})
+        resp.status_code = 400
+        return resp
 
-    # Gather the entire conversation summary
-    entire_summary = session_store[session_id].get("interaction_summary", "")
+    if not student_id or not question_id:
+        resp = jsonify({"error": "Missing student_id or question_id"})
+        resp.status_code = 400
+        return resp
+
+    # ✅ Ground-truth data
+    transcript = session_store[session_id].get("transcript", [])
     final_code = session_store[session_id]["input"][-1].get("new_code_written", "")
+    code_history = session_store[session_id].get("code_history", [])
     partial_eval_history = session_store[session_id].get("partial_eval_history", [])
 
-    # Build a state object for the final evaluation
     final_input = {
-        "student_id": student_id,  # ✅ Ensure student_id is included
-        "question_id": question_id,  # ✅ Ensure question_id is included
+        "student_id": student_id,
+        "question_id": str(question_id),
         "interview_question": session_store[session_id]["input"][0]["interview_question"],
-        "summary_of_past_response": entire_summary,
+        "active_requirements": session_store[session_id]["input"][0]["interview_question"],
+        "summary_of_past_response": session_store[session_id].get("interaction_summary", ""),
+        "user_input": session_store[session_id]["input"][-1].get("user_input", ""),
         "new_code_written": final_code,
+        "candidate_code": final_code,
+        "transcript": transcript,
+        "candidate_code_history_tail": code_history[-8:],
         "partial_eval_history": partial_eval_history
     }
 
-    eval_state = {
-        "input": [final_input],
-        "decision": [],
-        "output": []
-    }
-
-
-    # Call your evaluation_agent to produce the final evaluation
+    eval_state = {"input": [final_input], "decision": [], "output": []}
     updated_eval_state = evaluation_agent(eval_state)
     final_result = updated_eval_state.get("evaluation_result", {})
 
-    # Optionally store the final evaluation in the session
     session_store[session_id]["final_evaluation"] = final_result
 
     try:
-    # Strip down the result to just the 2 keys you care about
         feedback_only = {
             "final_evaluation": final_result.get("final_evaluation", {}),
             "detailed_feedback": final_result.get("detailed_feedback", {}),
-            "scores": final_result.get("total_score", {}),
-            "overall_assessment": final_result.get("overall_assessment", {})
+            "scores": final_result.get("total_score_0_100", 0),
+            "overall_assessment": final_result.get("overall_assessment", "")
         }
 
         update_success = update_user_progress_by_email(
@@ -928,176 +880,154 @@ def final_evaluation():
     except Exception as e:
         print(f"❌ Exception during user progress update: {e}")
 
+    return jsonify({"final_evaluation": final_result})
 
-    return apply_cors(jsonify({"final_evaluation": final_result}))
 
 @app.route('/me', methods=['GET'])
 def get_user_email():
     token = request.cookies.get("auth_token")
     if not token:
-        return jsonify({"error": "Not authenticated"}), 401
+        resp = jsonify({"error": "Not authenticated"})
+        resp.status_code = 401
+        return resp
     try:
         decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         return jsonify({"email": decoded["email"]})
-    except Exception as e:
-        return jsonify({"error": "Invalid token"}), 401
+    except Exception:
+        resp = jsonify({"error": "Invalid token"})
+        resp.status_code = 401
+        return resp
 
-from db_connector import get_user_feedback_history
 
 @app.route('/user-history', methods=['GET', 'OPTIONS'])
 def user_history():
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
     token = request.cookies.get("auth_token")
     if not token:
-        return apply_cors(jsonify({"error": "Not authenticated"}), 401)
+        resp = jsonify({"error": "Not authenticated"})
+        resp.status_code = 401
+        return resp
 
     try:
-        # Decode the JWT token
         decoded_token = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         user_id = decoded_token.get("user_id")
-
         if not user_id:
-            return apply_cors(jsonify({"error": "User ID not found in token"}))
+            resp = jsonify({"error": "User ID not found in token"})
+            resp.status_code = 400
+            return resp
 
-        # 🔍 Fetch the user's feedback history
         feedback_entries = get_user_feedback_history(str(user_id))
         print(f"✅ Retrieved {len(feedback_entries)} feedback entries for user_id {user_id}")
-
-        return apply_cors(jsonify({"feedback": feedback_entries}))
+        return jsonify({"feedback": feedback_entries})
 
     except jwt.ExpiredSignatureError:
-        return apply_cors(jsonify({"error": "Token expired"}))
-
+        resp = jsonify({"error": "Token expired"})
+        resp.status_code = 401
+        return resp
     except jwt.InvalidTokenError:
-        return apply_cors(jsonify({"error": "Invalid token"}))
-
+        resp = jsonify({"error": "Invalid token"})
+        resp.status_code = 401
+        return resp
     except Exception as e:
         print("❌ Unexpected error in /user-history:", e)
-        return apply_cors(jsonify({"error": "Internal server error"}))
+        resp = jsonify({"error": "Internal server error"})
+        resp.status_code = 500
+        return resp
+
 
 @app.route("/delete_history", methods=["POST", "OPTIONS"])
 def delete_history():
-    """
-    Uses the entire conversation summary, user code, and partial_eval_history
-    to produce a final detailed evaluation with the existing 'evaluation_agent'.
-    """
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
-    data = request.json
-    # session_id = data.get("session_id")
-    student_id = data.get("student_id")  # ✅ Ensure student_id is received
-    question_id = data.get("question_id")  # ✅ Ensure question_id is received    
-    
-    # print("Received session_id:", session_id)
-    # print("Current session_store keys:", session_store.keys())  # Debugging prin    
+    data = request.json or {}
+    student_id = data.get("student_id")
+    question_id = data.get("question_id")
 
-    # if not session_id or session_id not in session_store:
-    #     response = jsonify({"error": "Invalid session_id"})
-    #     response.status_code = 400
-    #     return apply_cors(response)
     print(f"student_id: {student_id}, question_id: {question_id}")
     if not student_id or not question_id:
-        response = jsonify({"error": "Missing student_id or question_id"})
-        response.status_code = 400
-        return apply_cors(response)
+        resp = jsonify({"error": "Missing student_id or question_id"})
+        resp.status_code = 400
+        return resp
 
     try:
-
-        update_success = delete_history_by_email(
-            email=student_id,
-            question_id=int(question_id),
-        )
-
+        update_success = delete_history_by_email(email=student_id, question_id=int(question_id))
         if not update_success:
-            print("❌ Failed to update user progress in DB.")
+            print("❌ Failed to delete history in DB.")
     except Exception as e:
-        
-        print(f"❌ Exception during user progress update: {e}")
-        response = jsonify({"error": "Internal server error"})
-        response.status_code = 500
-        return apply_cors(response)
+        print(f"❌ Exception during delete history: {e}")
+        resp = jsonify({"error": "Internal server error"})
+        resp.status_code = 500
+        return resp
 
+    return jsonify({"res": "success"})
 
-    return apply_cors(jsonify({"res": "success"}))
 
 @app.route('/run_code_python', methods=['POST', 'OPTIONS'])
 def run_code_python():
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
-    data = request.json
+    data = request.json or {}
     session_id = data.get("session_id")
     if not session_id or session_id not in session_store:
-        return apply_cors(jsonify({"error": "Invalid session_id"}))
+        resp = jsonify({"error": "Invalid session_id"})
+        resp.status_code = 400
+        return resp
 
-    # user_input = data.get("user_input", "")
-    # new_code_written = data.get("new_code_written", "")
-    # current_state = session_store[session_id]
-    # prev_summary = current_state.get("interaction_summary", "")
-
-    data = request.json
-    code = data.get('input_code', '')
-    # user_input = data.get('input', '')
-
-    # Use a secure, temporary file for execution
+    code = data.get('input_code', '') or ""
     temp_file = 'temp_code.py'
-    
-    # Save the code to the temporary file
+
     with open(temp_file, 'w') as f:
         f.write(code)
 
     try:
-        # Run the code in a subprocess with a timeout and security measures
-        # We use a dedicated, secure user for execution in production
         result = subprocess.run(
             ['python3', temp_file],
-            # input=user_input,
             capture_output=True,
             text=True,
-            timeout=10 # Set a timeout to prevent infinite loops
+            timeout=10
         )
-        
 
-        output = result.stdout
-        error = result.stderr
+        output = (result.stdout or "").strip()
+        error = (result.stderr or "").strip()
 
-        if error:
-            return apply_cors(jsonify({"res": output}))
-        else:
-            print(f"DOM: {output}")
-            # return jsonify({'output': output}), 200
-            return apply_cors(jsonify({"res": output}))
+        return jsonify({"res": output if output else error})
 
     except subprocess.TimeoutExpired:
-        return apply_cors(jsonify({'error': 'Execution timed out.'}))
+        resp = jsonify({'error': 'Execution timed out.'})
+        resp.status_code = 408
+        return resp
     except Exception as e:
-        return apply_cors(jsonify({'error': str(e)}))
+        resp = jsonify({'error': str(e)})
+        resp.status_code = 500
+        return resp
     finally:
-        # Clean up the temporary file
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
+
 @app.route('/run_code', methods=['POST', 'OPTIONS'])
 def run_code():
-
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
-    data = request.json
+    data = request.json or {}
     session_id = data.get("session_id")
     if not session_id or session_id not in session_store:
-        return apply_cors(jsonify({"error": "Invalid session_id"}))
-    
-    language = data.get('language', '').lower()
-    print("DOM", language)
-    code = data.get('input_code', '')
-    
-    
+        resp = jsonify({"error": "Invalid session_id"})
+        resp.status_code = 400
+        return resp
+
+    language = (data.get('language', '') or '').lower()
+    code = data.get('input_code', '') or ""
+
     if not code or not language:
-        return apply_cors(jsonify({"error": "Missing code or language"}))
+        resp = jsonify({"error": "Missing code or language"})
+        resp.status_code = 400
+        return resp
 
     temp_files = {
         'python': 'temp_code.py',
@@ -1108,88 +1038,77 @@ def run_code():
 
     temp_file = temp_files.get(language)
     if not temp_file:
-        return apply_cors(jsonify({"error": f"Unsupported language: {language}"}))
+        resp = jsonify({"error": f"Unsupported language: {language}"})
+        resp.status_code = 400
+        return resp
 
-    # Write code to file
     with open(temp_file, 'w') as f:
         f.write(code)
 
     try:
         if language == 'python':
             cmd = ['python3', temp_file]
-
         elif language == 'c':
             exe = './temp_exe'
-            compile_cmd = ['gcc', temp_file, '-o', exe]
-            # print(f"DOM before")
-            subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
-            # print(f"DOM after")
+            subprocess.run(['gcc', temp_file, '-o', exe], capture_output=True, text=True, timeout=10)
             cmd = [exe]
-
         elif language == 'cpp':
             exe = './temp_exe'
-            compile_cmd = ['g++', temp_file, '-o', exe]
-            # print(f"DOM before")
-            subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
-            # print(f"DOM after")
+            subprocess.run(['g++', temp_file, '-o', exe], capture_output=True, text=True, timeout=10)
             cmd = [exe]
-
         elif language == 'java':
-            compile_cmd = ['javac', temp_file]
-            # print(f"DOM before")
-            subprocess.run(compile_cmd, capture_output=True, text=True, timeout=10)
-            # print(f"DOM after")
+            subprocess.run(['javac', temp_file], capture_output=True, text=True, timeout=10)
             cmd = ['java', 'Main']
-            
-
         else:
-            return apply_cors(jsonify({"error": "Unsupported language"}))
+            resp = jsonify({"error": "Unsupported language"})
+            resp.status_code = 400
+            return resp
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        print("DOM result:", result)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 
-        output = result.stdout.strip()
-        error = result.stderr.strip()
+        output = (result.stdout or "").strip()
+        error = (result.stderr or "").strip()
 
-        response = {"res": output if output else error}
-        return apply_cors(jsonify(response))
+        return jsonify({"res": output if output else error})
 
     except subprocess.TimeoutExpired:
-        return apply_cors(jsonify({'error': 'Execution timed out.'}))
+        resp = jsonify({'error': 'Execution timed out.'})
+        resp.status_code = 408
+        return resp
     except Exception as e:
-        return apply_cors(jsonify({'error': str(e)}))
+        resp = jsonify({'error': str(e)})
+        resp.status_code = 500
+        return resp
     finally:
-        # Clean up
         for f in ['temp_code.py', 'temp_code.c', 'temp_code.cpp', 'Main.java', 'Main.class', 'temp_exe']:
             if os.path.exists(f):
                 os.remove(f)
 
+
 @app.route('/elevenlabs_tts', methods=['POST', 'OPTIONS'])
 def elevenlabs_tts():
     """Handles ElevenLabs TTS with proper CORS support."""
-    ELEVENLABS_API_KEY = os.env("ELEVENLABS_API_KEY")
-    ELEVENLABS_VOICE_ID = os.env("ELEVENLABS_VOICE_ID")
-    if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS Preflight OK"})
-        response.status_code = 204  # ✅ Respond correctly to preflight
-        return apply_cors(response)
+    ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+    ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID")
 
-    text = request.json.get("text", "")
+    if request.method == "OPTIONS":
+        return jsonify({"message": "CORS Preflight OK"}), 204
+
+    text = (request.json or {}).get("text", "")
     if not text:
-        return apply_cors(jsonify({"error": "No text provided"}), 400)
+        resp = jsonify({"error": "No text provided"})
+        resp.status_code = 400
+        return resp
+
+    if not ELEVENLABS_API_KEY or not ELEVENLABS_VOICE_ID:
+        resp = jsonify({"error": "Missing ElevenLabs credentials"})
+        resp.status_code = 500
+        return resp
 
     try:
         def generate():
             url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}/stream"
-            headers = {
-                "xi-api-key": ELEVENLABS_API_KEY,
-                "Content-Type": "application/json"
-            }
+            headers = {"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json"}
             payload = {
                 "text": text,
                 "voice_settings": {
@@ -1202,152 +1121,100 @@ def elevenlabs_tts():
 
             with requests.post(url, headers=headers, json=payload, stream=True) as r:
                 if r.status_code != 200:
-                    print(f"Error fetching audio from ElevenLabs: {r.status_code}")
-                    return apply_cors(Response("Failed to get audio from ElevenLabs.", status=500, mimetype='text/plain'))
-
-                # Log for diagnostics
-                print("Started streaming audio...")
-
-                # Stream audio chunks to the frontend continuously
+                    return
                 for chunk in r.iter_content(chunk_size=1024):
                     if chunk:
-                        yield chunk  # Yield each chunk of the audio stream
+                        yield chunk
 
-                print("Audio streaming complete.")
-
-        # Return the streaming response with the audio/mpeg MIME type
-        return apply_cors(Response(generate(), mimetype='audio/mpeg'))
+        return Response(generate(), mimetype='audio/mpeg')
 
     except Exception as e:
-        # Catch any exception and log it, then return a proper error response
         print(f"Error during TTS generation: {e}")
-        return apply_cors(Response("Internal server error during TTS generation.", status=500, mimetype='text/plain'))
+        resp = jsonify({"error": "Internal server error during TTS generation."})
+        resp.status_code = 500
+        return resp
+
 
 @app.route('/openai_tts', methods=['POST', 'OPTIONS'])
 def openai_tts():
-    """Handles TTS generation using OpenAI API."""
     if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS Preflight OK"})
-        response.status_code = 204
-        return apply_cors(response)
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
-    text = request.json.get("text", "")
+    text = (request.json or {}).get("text", "")
     if not text:
-        return apply_cors(jsonify({"error": "No text provided"}), 400)
+        resp = jsonify({"error": "No text provided"})
+        resp.status_code = 400
+        return resp
 
     try:
-        # Use the Azure OpenAI client to generate TTS audio
         response = tts_hd_client.audio.speech.create(
-            model="tts-hd",  # Choose the appropriate TTS model (e.g., "tts-hd" for high quality)
-            voice="nova",    # Choose the voice (this can vary based on the available voices)
+            model="tts-hd",
+            voice="nova",
             input=text
         )
 
-        # Check if the response is valid and contains the audio content
         if response:
-            audio_stream = response.content  # Get the audio data stream directly
-
+            audio_stream = response.content
             def generate_audio_stream():
-                yield audio_stream  # Yield the audio stream to the frontend
+                yield audio_stream
+            return Response(generate_audio_stream(), mimetype='audio/mpeg')
 
-            return apply_cors(Response(generate_audio_stream(), mimetype='audio/mpeg'))
-
-        else:
-            print("Error: No audio content returned from OpenAI.")
-            return apply_cors(Response("Failed to generate audio", status=500, mimetype='text/plain'))
+        resp = jsonify({"error": "Failed to generate audio"})
+        resp.status_code = 500
+        return resp
 
     except Exception as e:
         print(f"Error during TTS generation: {e}")
-        return apply_cors(Response("Internal server error during TTS generation.", status=500, mimetype='text/plain'))
+        resp = jsonify({"error": "Internal server error during TTS generation."})
+        resp.status_code = 500
+        return resp
+
 
 @app.route('/gpt4o_realtime_tts', methods=['POST', 'OPTIONS'])
 def gpt4o_realtime_tts():
-    """Handles TTS generation using gpt-4o-mini-realtime-preview from Azure Foundry."""
     if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS Preflight OK"})
-        response.status_code = 204
-        return apply_cors(response)
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
-    text = request.json.get("text", "")
+    text = (request.json or {}).get("text", "")
     if not text:
-        return apply_cors(jsonify({"error": "No text provided"}), 400)
+        resp = jsonify({"error": "No text provided"})
+        resp.status_code = 400
+        return resp
 
     try:
-        # Use Azure OpenAI client to generate TTS audio using GPT-4o mini real-time model
         response = realtime_client.audio.speech.create(
-            model="gpt-4o-mini-realtime-preview",  # ✅ Your custom Foundry model
-            voice="Alloy",                          # ✅ Compatible voice
+            model="gpt-4o-mini-realtime-preview",
+            voice="Alloy",
             input=text
         )
 
-        # Stream audio back to frontend
         if response:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
                 response.stream_to_file(f.name)
                 temp_path = f.name
+            return send_file(temp_path, mimetype="audio/mpeg")
 
-            return apply_cors(send_file(temp_path, mimetype="audio/mpeg"))
-
-        else:
-            print("Error: No audio content returned from GPT-4o mini realtime model.")
-            return apply_cors(Response("Failed to generate audio", status=500, mimetype='text/plain'))
+        resp = jsonify({"error": "Failed to generate audio"})
+        resp.status_code = 500
+        return resp
 
     except Exception as e:
         print(f"Error during GPT-4o realtime TTS generation: {e}")
-        return apply_cors(Response("Internal server error during TTS generation.", status=500, mimetype='text/plain'))
+        resp = jsonify({"error": "Internal server error during TTS generation."})
+        resp.status_code = 500
+        return resp
 
-# google_tts_client = texttospeech.TextToSpeechClient()
-# @app.route("/google_tts", methods=["POST", "OPTIONS"])
-# def google_tts():
-#     """Generate speech using Google Cloud Text-to-Speech API."""
-#     if request.method == "OPTIONS":
-#         response = jsonify({"message": "CORS Preflight OK"})
-#         response.status_code = 204
-#         return apply_cors(response)
-
-
-#     data = request.get_json()
-#     text = data.get("text", "")
-#     if not text:
-#         return apply_cors(jsonify({"error": "No text provided"}), 400)
-
-#     try:
-#         synthesis_input = texttospeech.SynthesisInput(text=text)
-
-#         voice = texttospeech.VoiceSelectionParams(
-#             language_code="en-US",
-#             name="en-US-Chirp3-HD-Orus",
-#             ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
-#         )
-
-#         audio_config = texttospeech.AudioConfig(
-#             audio_encoding=texttospeech.AudioEncoding.MP3
-#         )
-
-#         response = google_tts_client.synthesize_speech(
-#             input=synthesis_input,
-#             voice=voice,
-#             audio_config=audio_config
-#         )
-
-#         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as out:
-#             out.write(response.audio_content)
-#             temp_path = out.name
-
-#         return apply_cors(send_file(temp_path, mimetype="audio/mpeg"))
-
-#     except Exception as e:
-#         print(f"❌ Google TTS Error: {e}")
-#         return apply_cors(Response("Internal server error during Google TTS.", status=500, mimetype="text/plain"))
 
 @app.route('/transcribe', methods=['POST', 'OPTIONS'])
 def transcribe_audio():
     if request.method == "OPTIONS":
-        return apply_cors(jsonify({"message": "CORS Preflight OK"}))
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
     file = request.files.get("audio")
     if not file:
-        return apply_cors(jsonify({"error": "No audio file provided"}))
+        resp = jsonify({"error": "No audio file provided"})
+        resp.status_code = 400
+        return resp
 
     try:
         audio_bytes = file.read()
@@ -1357,40 +1224,37 @@ def transcribe_audio():
             file=("audio.webm", audio_bytes),
             language="en"
         )
-        print("✅ Whisper transcription result:", result.text)
 
-        return apply_cors(jsonify({"transcript": result.text}))
+        return jsonify({"transcript": result.text})
     except Exception as e:
         print("❌ Whisper transcription error:", e)
-        response = apply_cors(jsonify({"error": str(e)}))
-        response.status_code = 500
-        return response
+        resp = jsonify({"error": str(e)})
+        resp.status_code = 500
+        return resp
+
 
 @app.route('/test')
 def test():
-    return "It works on Azura! " + os.getenv("AZURE_SPEECH_TTS_KEY")
+    return "It works on Azura! " + str(os.getenv("AZURE_SPEECH_TTS_KEY") or "")
+
 
 @app.route("/azure_tts", methods=["POST", "OPTIONS"])
 def azure_tts():
-    """Generate speech using Azure Speech SDK and stream back MP3."""
-    AZURE_TTS_KEY = os.getenv("AZURE_SPEECH_TTS_KEY")
     AZURE_TTS_REGION = "eastus"
 
     if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS Preflight OK"})
-        response.status_code = 204
-        return apply_cors(response)
+        return jsonify({"message": "CORS Preflight OK"}), 204
 
-    data = request.get_json()
+    data = request.get_json() or {}
     text = data.get("text", "")
     if not text:
-        return apply_cors(jsonify({"error": "No text provided"}), 400)
+        resp = jsonify({"error": "No text provided"})
+        resp.status_code = 400
+        return resp
 
-    # ✅ Log the sentence being synthesized
     print(f"🗣️ Azure TTS requested for sentence: {repr(text)}")
 
     try:
-        
         speech_config = speechsdk.SpeechConfig(subscription=os.getenv("AZURE_SPEECH_TTS_KEY"), region=AZURE_TTS_REGION)
         speech_config.speech_synthesis_voice_name = "en-US-AvaMultilingualNeural"
         speech_config.set_speech_synthesis_output_format(
@@ -1399,78 +1263,45 @@ def azure_tts():
 
         synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
 
-        voice_settings={
-            "voice":"en-US-AvaMultilingualNeural",
+        voice_settings = {
+            "voice": "en-US-AvaMultilingualNeural",
             "pace": "medium",
             "pause": "100ms",
             "tone": "newscast-formal",
             "pitch": "0%"
         }
         ssml_text = f"""
-            <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" 
-                xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">
-                <voice name="{voice_settings['voice']}">
-                    <prosody rate="{voice_settings['pace']}" pitch="{voice_settings['pitch']}">
-                        <break time="{voice_settings['pause']}"/>
-                        <mstts:express-as style="{voice_settings['tone']}">
-                            {text}
-                        </mstts:express-as>
-                    </prosody>
-                </voice>
-            </speak>
-            """
-        
-        # result = synthesizer.speak_text_async(text).get()
+<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"
+  xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">
+  <voice name="{voice_settings['voice']}">
+    <prosody rate="{voice_settings['pace']}" pitch="{voice_settings['pitch']}">
+      <break time="{voice_settings['pause']}"/>
+      <mstts:express-as style="{voice_settings['tone']}">
+        {text}
+      </mstts:express-as>
+    </prosody>
+  </voice>
+</speak>
+""".strip()
+
         result = synthesizer.speak_ssml_async(ssml_text).get()
 
         if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
             cancellation_details = speechsdk.CancellationDetails(result)
-            print("❌ Azure TTS CANCELED:")
-            print("Reason:", cancellation_details.reason)
-            print("ErrorDetails:", cancellation_details.error_details)
             raise Exception(f"TTS failed: {cancellation_details.reason} - {cancellation_details.error_details}")
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as out:
             out.write(result.audio_data)
             temp_path = out.name
 
-        return apply_cors(send_file(temp_path, mimetype="audio/mpeg"))
+        return send_file(temp_path, mimetype="audio/mpeg")
 
     except Exception as e:
         print(f"❌ Azure TTS Error: {e}")
-        return apply_cors(Response("Internal server error during Azure TTS.", status=500, mimetype="text/plain"))
+        resp = jsonify({"error": "Internal server error during Azure TTS."})
+        resp.status_code = 500
+        return resp
 
-@app.route("/azure_tts_debug", methods=["POST"])
-def azure_tts_debug():
-    try:
-        AZURE_TTS_KEY = os.getenv("AZURE_SPEECH_TTS_KEY")
-        AZURE_TTS_REGION = os.getenv("AZURE_SPEECH_TTS_REGION", "eastus")
-
-        print("🔍 Using key:", AZURE_TTS_KEY[:5] + "..." if AZURE_TTS_KEY else "❌ MISSING")
-        print("🔍 Using region:", AZURE_TTS_REGION)
-
-        text = "Hello world"  # Short and safe
-        speech_config = speechsdk.SpeechConfig(subscription=AZURE_TTS_KEY, region=AZURE_TTS_REGION)
-        speech_config.speech_synthesis_voice_name = "en-US-AriaNeural"
-
-        synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
-        result = synthesizer.speak_text_async(text).get()
-
-        if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-            details = speechsdk.CancellationDetails(result)
-            print("❌ Cancelled:", details.reason)
-            print("❌ Error details:", details.error_details)
-            return "TTS failed", 500
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as out:
-            out.write(result.audio_data)
-            path = out.name
-
-        return send_file(path, mimetype="audio/mpeg")
-
-    except Exception as e:
-        print("❌ Exception:", e)
-        return "Internal error", 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
