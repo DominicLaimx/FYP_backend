@@ -615,13 +615,14 @@ class DriveService:
 
         return fh.getvalue()
 
-TOKEN_PICKLE_B64 = os.getenv("GOOGLE_TOKEN_PICKLE")
-drive = DriveService(token_pickle_b64=TOKEN_PICKLE_B64)
+
 
 
 @app.route('/save_recording', methods=['POST', 'OPTIONS'])
 def save_recording():
     video_file = request.files['video']
+    TOKEN_PICKLE_B64 = os.getenv("GOOGLE_TOKEN_PICKLE")
+    drive = DriveService(token_pickle_b64=TOKEN_PICKLE_B64)
     with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
         video_bytes = video_file.read()
         tmp.write(video_bytes)
