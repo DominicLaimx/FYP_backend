@@ -73,8 +73,38 @@ Be concise. No more than 3 sentences.
 """,
     },
 
-    # --- NEW: strict scoring prompts used by evaluation.py ---
-    # This is not the “interviewer chat reply”; it’s the scoring engine prompt.
+    # ✅ NEW: system design mode (fixes "no response" when frontend selects system design)
+    "system_design": {
+        "guidance": """
+The candidate seems stuck in a system design interview.
+Ask 1–2 questions that help them structure the design without giving them the full design.
+Push them to define requirements, scale, and key constraints first.
+Stay in character as a real interviewer: calm, neutral, and conversational.
+NO EMOJI
+Max 3 sentences.
+""",
+        "question": """
+Ask an interviewer-style question for system design.
+Focus on requirements, assumptions, APIs, data model, capacity estimation, or tradeoffs.
+If they haven't stated requirements, force that step.
+NO EMOJI
+Max 3 sentences.
+""",
+        "evaluation": """
+Evaluate their system design response like an interviewer would.
+Only judge what they actually said: requirements, architecture, data model, scaling, reliability, tradeoffs.
+If something is missing, point it out and ask one follow-up question that pushes depth.
+NO EMOJI
+Max 3 sentences.
+""",
+        "offtopic": """
+Answer their relevant system design question briefly, then steer them back to the main design.
+NO EMOJI
+Max 3 sentences.
+""",
+    },
+
+    # --- strict scoring prompts used elsewhere (kept for compatibility) ---
     "scoring": {
         "system": """
 You are a strict scoring engine for a coding interview practice app.
@@ -111,36 +141,33 @@ EXECUTION RESULTS (JSON, may be empty):
 {execution_results_json}
 
 Return JSON in this exact shape:
-{{
-  "overall_score": number,                   // 0-100, computed from categories
+{
+  "overall_score": number,
   "categories": [
-    {{
-      "name": string,                        // must match rubric categories
-      "score": number,                       // 0-10
-      "weight": number,                      // 0-1
-      "rationale": string,                   // short
-      "evidence": [                          // >= 1 item per category
-        {{
+    {
+      "name": string,
+      "score": number,
+      "weight": number,
+      "rationale": string,
+      "evidence": [
+        {
           "source": "candidate_text"|"candidate_code"|"chat_history"|"execution_results",
           "quote": string,
           "why_it_matters": string
-        }}
+        }
       ]
-    }}
+    }
   ],
   "strengths": [string, string, string],
   "improvements": [string, string, string],
   "next_steps": [string, string, string],
-  "confidence": number,                      // 0-1
-  "flags": [string]                          // e.g. "no_execution_results", "low_evidence"
-}}
+  "confidence": number,
+  "flags": [string]
+}
 """,
     },
-
-    # Add new modes easily
 }
 
-# Kept for backward compatibility if other code imports OLD_PROMPT
 OLD_PROMPT = {
     "guidance": """
 The user is confused and needs some guidance. Provide guidance questions on how to proceed without giving the answer.
