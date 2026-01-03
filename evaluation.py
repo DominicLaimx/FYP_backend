@@ -22,6 +22,7 @@ client = AzureOpenAI(
     api_version="2024-02-01"
 )
 
+
 HireLabel = Literal["Strong Hire", "Hire", "No Hire", "Strong No Hire"]
 ModeLabel = Literal["partial", "final"]
 SOLOLevel = Literal[0, 1, 2, 3, 4]
