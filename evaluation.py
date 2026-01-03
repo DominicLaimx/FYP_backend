@@ -902,10 +902,7 @@ def partial_evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
         "examples_of_what_went_well": "The implementation is correct, concise, and covers all valid input cases for bracket validation. The stack-based logic is efficient and executed correctly."
         }
     }
-
-    obj = PartialEvaluationSchema(**parsed)
-    state["partial_evaluation_result"] = _model_dump(obj)
-    return state
+}
 
 
 # ---------------------------------------------------------------------------------------
