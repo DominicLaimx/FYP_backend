@@ -1,9 +1,8 @@
 import os
 import json
 import re
-import random
 from typing import Any, Dict, List, Optional, Literal, Tuple
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 from openai import AzureOpenAI
 
 # ---------------------------
@@ -21,7 +20,6 @@ client = AzureOpenAI(
     api_key=key,
     api_version="2024-02-01"
 )
-
 
 HireLabel = Literal["Strong Hire", "Hire", "No Hire", "Strong No Hire"]
 ModeLabel = Literal["partial", "final"]
@@ -49,20 +47,21 @@ def _safe_json_loads(text: str) -> Dict[str, Any]:
 
 def _call_llm_json(messages: List[Dict[str, str]]) -> str:
     """
-    Used ONLY to write feedback text, not to decide scores.
+    Used to extract grounded evidence + optionally rubric-scored outputs,
+    but we always verify outputs against transcript/code before trusting them.
     """
     try:
         resp = client.chat.completions.create(
             model=deployment,
             messages=messages,
             response_format={"type": "json_object"},
-            temperature=0.2,
+            temperature=0.0,
         )
     except Exception:
         resp = client.chat.completions.create(
             model=deployment,
             messages=messages,
-            temperature=0.2,
+            temperature=0.0,
         )
     return (resp.choices[0].message.content or "").strip()
 
@@ -124,34 +123,6 @@ def _extract_latest_user_text(transcript: List[Dict[str, str]]) -> str:
             return (t.get("content") or "").strip()
     return ""
 
-def _looks_like_problem_solving(text: str) -> bool:
-    t = (text or "").lower()
-    keywords = [
-        "approach", "idea", "algorithm", "greedy", "dp", "dynamic programming",
-        "two pointers", "hash", "map", "set", "stack", "queue",
-        "time complexity", "space complexity", "big o", "edge case",
-        "iterate", "loop", "invariant", "sort", "binary search",
-    ]
-    return any(k in t for k in keywords)
-
-def _looks_like_technical_depth(text: str) -> bool:
-    t = (text or "").lower()
-    keywords = [
-        "complexity", "o(", "amortized", "tradeoff", "throughput", "latency",
-        "database", "index", "cache", "cdn", "sharding", "replication",
-        "concurrency", "race condition", "locking", "api", "protocol",
-        "consistency", "availability", "partition", "cap", "load balancer"
-    ]
-    return any(k in t for k in keywords)
-
-def _looks_like_clarifying_questions(text: str) -> bool:
-    t = (text or "").strip()
-    if "?" in t:
-        return True
-    starters = ["clarify", "just to confirm", "can i assume", "what are the constraints", "edge cases"]
-    tl = t.lower()
-    return any(s in tl for s in starters)
-
 def _first_quote_from_transcript(transcript: List[Dict[str, str]]) -> str:
     for t in transcript:
         if (t.get("role") or "").lower() == "user":
@@ -164,12 +135,27 @@ def _quote_from_code(code: str) -> str:
     c = (code or "").strip()
     if not c:
         return "N/A"
-    # pick a small excerpt
-    lines = [ln.rstrip() for ln in c.splitlines() if ln.strip()]
+    lines = [ln.rstrip("\n") for ln in c.splitlines() if ln.strip()]
     return ("\n".join(lines[:6]))[:220] if lines else c[:220]
 
 def _na_feedback(student_id: str, aspect_name: str) -> str:
     return f"N/A — {student_id} didn’t provide enough evidence to assess {aspect_name} in this attempt."
+
+def _normalize_ws(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip())
+
+def _contains_quote(quote: str, blob: str) -> bool:
+    """
+    Verification step to prevent hallucinated evidence.
+    Prefer exact substring, but allow whitespace-normalized match to reduce false negatives.
+    """
+    q = (quote or "").strip()
+    if not q or q == "N/A":
+        return False
+    if q in (blob or ""):
+        return True
+    # relaxed: whitespace normalization
+    return _normalize_ws(q) in _normalize_ws(blob or "")
 
 # ---------------------------
 # Schemas (kept compatible with your app)
@@ -261,133 +247,374 @@ def _prepare_context(input_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 # ---------------------------
-# Deterministic scoring (rigorous + grounded)
+# Scoring (rigorous, grounded, evidence-verified)
 # ---------------------------
 
 def _bucket_from_0_25(score_0_25: int) -> str:
     s100 = int(max(0, min(100, round(score_0_25 * 4))))
     return _label_from_score(s100)
 
-def _communication_score(user_words: int, latest_user: str) -> int:
-    if user_words < 5:
-        return 0
-    # length-based baseline (conservative)
-    if user_words < 15: base = 4
-    elif user_words < 40: base = 8
-    elif user_words < 80: base = 12
-    elif user_words < 150: base = 16
-    else: base = 19
+def _score_hard_gates(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Hard gates to prevent inflated scores when there is not enough evidence.
 
-    if _looks_like_clarifying_questions(latest_user):
-        base += 3
-    if "time complexity" in (latest_user or "").lower() or "space complexity" in (latest_user or "").lower():
-        base += 2
+    These gates intentionally produce LOW scores rather than guessing/hallucinating.
+    """
+    transcript = ctx.get("transcript") or []
+    user_turns = _count_user_turns(transcript)
+    user_words = _count_user_words(transcript)
 
-    return int(max(0, min(25, base)))
+    code = (ctx.get("candidate_code") or "").strip()
+    expl = (ctx.get("candidate_explanation") or "").strip()
 
-def _problem_solving_score(user_turns: int, user_words: int, latest_user: str, candidate_expl: str) -> int:
-    if user_turns < 2 and user_words < 40:
-        return 0
-    t = (latest_user + " " + (candidate_expl or "")).lower()
-    score = 3
-    if _looks_like_problem_solving(t):
-        score = 10
-    if "edge case" in t or "constraints" in t:
-        score += 4
-    if "step" in t or "first" in t or "then" in t:
-        score += 3
-    return int(max(0, min(25, score)))
+    has_any_code = len(code) >= 20
+    has_any_expl = len(re.findall(r"\b\w+\b", expl)) >= 15  # minimal attempt to explain
+    has_any_interview = user_turns >= 1 and user_words >= 5
 
-def _technical_score(user_turns: int, user_words: int, latest_user: str, candidate_expl: str) -> int:
-    if user_turns < 2 and user_words < 40:
-        return 0
-    t = (latest_user + " " + (candidate_expl or "")).lower()
-    score = 3
-    if _looks_like_technical_depth(t):
-        score = 10
-    if "tradeoff" in t or "latency" in t or "throughput" in t:
-        score += 4
-    if "big o" in t or "o(" in t or "complexity" in t:
-        score += 3
-    return int(max(0, min(25, score)))
+    # No attempt at all
+    if not has_any_code and not has_any_expl and not has_any_interview:
+        return {
+            "forced": True,
+            "category_scores": {
+                "communication": 0,
+                "problem_solving": 0,
+                "technical_competency": 0,
+                "code_implementation": 0
+            },
+            "cap_total": 0,
+            "reason": "No assessable evidence provided (no meaningful transcript, explanation, or code)."
+        }
 
-def _code_score(code: str, pass_rate: Optional[float]) -> int:
-    c = (code or "").strip()
-    if len(c) < 20:
-        return 0
+    # Extremely minimal attempt: 1 short user turn, no code, no explanation
+    if user_turns <= 1 and user_words < 25 and not has_any_code and not has_any_expl:
+        return {
+            "forced": True,
+            "category_scores": {
+                "communication": 2 if user_words >= 5 else 0,
+                "problem_solving": 0,
+                "technical_competency": 0,
+                "code_implementation": 0
+            },
+            "cap_total": 10,
+            "reason": "Too little evidence; only a minimal interaction with no code/explanation."
+        }
 
-    # size baseline (still conservative)
-    if len(c) < 80: score = 6
-    elif len(c) < 200: score = 10
-    elif len(c) < 500: score = 14
-    else: score = 16
+    # Attempt exists, but still small: cap total unless objective correctness is strong
+    cap_total = 35
+    if has_any_code or has_any_expl:
+        cap_total = 55
+    if ctx.get("pass_rate") is not None and float(ctx["pass_rate"]) >= 0.85:
+        cap_total = 80  # allow higher if tests objectively pass
+    return {
+        "forced": False,
+        "category_scores": {},
+        "cap_total": cap_total,
+        "reason": "Gating applied."
+    }
 
-    # If we have objective pass_rate, override upwards/downwards
-    if pass_rate is not None:
-        pr = float(pass_rate)
-        if pr >= 0.95: score = max(score, 23)
-        elif pr >= 0.85: score = max(score, 20)
-        elif pr >= 0.60: score = max(score, 14)
-        elif pr >= 0.30: score = min(score, 10)
-        else: score = min(score, 6)
+def _llm_rubric_scoring(ctx: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Rubric-anchored scoring by LLM, but MUST be grounded with evidence quotes.
+    We reject the result if:
+    - scores are out of range
+    - required keys missing
+    - evidence quotes do not exist in transcript/code
+    """
+    system_msg = (
+        "You are a strict technical interview evaluator. "
+        "Use ONLY the provided transcript and code. "
+        "Do NOT assume missing steps. Do NOT fabricate. "
+        "Return ONLY valid JSON."
+    )
 
-    return int(max(0, min(25, score)))
+    prompt = f"""
+Return ONLY valid JSON with EXACTLY this schema:
+
+{{
+  "category_scores": {{
+    "communication": 0-25,
+    "problem_solving": 0-25,
+    "technical_competency": 0-25,
+    "code_implementation": 0-25
+  }},
+  "rationales": {{
+    "communication": "...",
+    "problem_solving": "...",
+    "technical_competency": "...",
+    "code_implementation": "..."
+  }},
+  "evidence_quotes": {{
+    "communication": ["...", "..."],
+    "problem_solving": ["...", "..."],
+    "technical_competency": ["...", "..."],
+    "code_implementation": ["...", "..."]
+  }}
+}}
+
+Hard rules:
+- Evidence quotes MUST be copied from the transcript/code as exact substrings.
+- If you cannot find evidence for a category, use an empty list [] and score low (0-3).
+- Never reward effort that is not visible in the transcript/code.
+- Use tests/pass-rate ONLY if explicitly provided below; do not assume tests exist otherwise.
+- Keep evidence_quotes short (each quote <= 160 chars). Prefer 1–3 quotes per category.
+
+Rubric anchors (0–25):
+COMMUNICATION:
+- 0–3: no explanation / cannot follow reasoning
+- 4–9: some clarity but fragmented
+- 10–16: clear enough to follow, some structure
+- 17–22: structured, anticipates questions, communicates constraints/tradeoffs
+- 23–25: exceptionally clear, concise, organized under pressure
+
+PROBLEM_SOLVING:
+- 0–3: no approach stated / random guessing
+- 4–9: partial approach, gaps, little validation
+- 10–16: coherent approach, mentions cases/steps
+- 17–22: strong decomposition, validates with examples/edge cases
+- 23–25: excellent reasoning, robust validation, correct algorithmic choices
+
+TECHNICAL_COMPETENCY:
+- 0–3: no technical reasoning visible
+- 4–9: basic concepts, some inaccuracies/omissions
+- 10–16: correct core concepts, minor gaps
+- 17–22: good depth and correctness, discusses complexity/tradeoffs well
+- 23–25: deep, precise, anticipates pitfalls, strong engineering judgment
+
+CODE_IMPLEMENTATION:
+- If NO meaningful code is provided, score 0–3.
+- 4–9: incomplete/buggy code, unclear structure
+- 10–16: mostly correct implementation, readable
+- 17–22: correct, clean, handles edge cases, good structure
+- 23–25: production-quality clarity and robustness (within interview scope)
+
+Inputs (ONLY SOURCE OF TRUTH):
+Active requirements:
+{ctx["active_requirements"]}
+
+Transcript:
+{ctx["transcript_text"]}
+
+Candidate code:
+{ctx["candidate_code"]}
+
+Objective correctness signals (if any):
+tests_passed={ctx.get("tests_passed")}
+tests_total={ctx.get("tests_total")}
+pass_rate={ctx.get("pass_rate")}
+major_failures={json.dumps(ctx.get("major_failures") or [], ensure_ascii=False)}
+""".strip()
+
+    raw = _call_llm_json([
+        {"role": "system", "content": system_msg},
+        {"role": "user", "content": prompt}
+    ])
+
+    parsed = _safe_json_loads(raw)
+
+    if not isinstance(parsed, dict):
+        return None
+    cat = parsed.get("category_scores")
+    eq = parsed.get("evidence_quotes")
+    if not isinstance(cat, dict) or not isinstance(eq, dict):
+        return None
+
+    # Validate scores are ints and in range
+    for k in ["communication", "problem_solving", "technical_competency", "code_implementation"]:
+        if k not in cat:
+            return None
+        try:
+            v = int(cat[k])
+        except Exception:
+            return None
+        if v < 0 or v > 25:
+            return None
+        cat[k] = v
+
+    # Validate evidence quotes exist in transcript/code
+    blob = (ctx.get("transcript_text") or "") + "\n\n" + (ctx.get("candidate_code") or "")
+    for k in ["communication", "problem_solving", "technical_competency", "code_implementation"]:
+        quotes = eq.get(k)
+        if quotes is None:
+            return None
+        if not isinstance(quotes, list):
+            return None
+        # keep only short strings
+        cleaned: List[str] = []
+        for q in quotes[:5]:
+            if not isinstance(q, str):
+                continue
+            q = q.strip()
+            if not q or len(q) > 200:
+                continue
+            if _contains_quote(q, blob):
+                cleaned.append(q)
+            else:
+                # Any hallucinated quote => reject the whole LLM result
+                return None
+        eq[k] = cleaned
+
+    parsed["category_scores"] = cat
+    parsed["evidence_quotes"] = eq
+    return parsed
+
+def _fallback_conservative_scoring(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Conservative deterministic fallback if LLM output is rejected.
+    This is intentionally strict and avoids keyword/length gamification.
+    """
+    transcript = ctx.get("transcript") or []
+    latest_user = _extract_latest_user_text(transcript)
+    expl = (ctx.get("candidate_explanation") or "").strip()
+    code = (ctx.get("candidate_code") or "").strip()
+    pass_rate = ctx.get("pass_rate")
+
+    # Communication: only if there's any explanation beyond a short phrase
+    comm = 0
+    if len(re.findall(r"\b\w+\b", (latest_user + " " + expl))) >= 20:
+        # slight bump if there are multiple sentences / structured lines
+        sentences = re.split(r"[.!?\n]+", (latest_user + " " + expl))
+        comm = 8 if sum(1 for s in sentences if s.strip()) >= 2 else 5
+
+    # Problem solving: only if there is a described plan or code exists
+    ps = 0
+    if len(re.findall(r"\b\w+\b", expl)) >= 25:
+        ps = 8
+    if len(code) >= 20:
+        ps = max(ps, 6)
+
+    # Technical: only if complexity is explicitly mentioned (very conservative)
+    tech = 0
+    t = (latest_user + " " + expl).lower()
+    if "o(" in t or "big o" in t or "complexity" in t:
+        tech = 8
+
+    # Code: primarily from objective pass_rate if available
+    code_score = 0
+    if len(code) >= 20:
+        code_score = 8
+        if pass_rate is not None:
+            pr = float(pass_rate)
+            if pr >= 0.95: code_score = 23
+            elif pr >= 0.85: code_score = 20
+            elif pr >= 0.60: code_score = 14
+            elif pr >= 0.30: code_score = 10
+            else: code_score = 6
+
+    return {
+        "category_scores": {
+            "communication": int(max(0, min(25, comm))),
+            "problem_solving": int(max(0, min(25, ps))),
+            "technical_competency": int(max(0, min(25, tech))),
+            "code_implementation": int(max(0, min(25, code_score))),
+        },
+        "evidence_quotes": {
+            "communication": [],
+            "problem_solving": [],
+            "technical_competency": [],
+            "code_implementation": [],
+        },
+        "rationales": {
+            "communication": "Fallback scoring used due to invalid/unverifiable LLM evidence quotes.",
+            "problem_solving": "Fallback scoring used due to invalid/unverifiable LLM evidence quotes.",
+            "technical_competency": "Fallback scoring used due to invalid/unverifiable LLM evidence quotes.",
+            "code_implementation": "Fallback scoring used due to invalid/unverifiable LLM evidence quotes.",
+        }
+    }
 
 def _solo_level(latest_user: str, code: str, expl: str) -> Tuple[int, str]:
-    has_ps = _looks_like_problem_solving(latest_user) or _looks_like_problem_solving(expl)
-    has_tech = _looks_like_technical_depth(latest_user) or _looks_like_technical_depth(expl)
+    """
+    SOLO estimate should be conservative; it reflects what's demonstrated, not what's intended.
+    """
+    t = (latest_user + " " + (expl or "")).strip()
+    has_expl = len(re.findall(r"\b\w+\b", t)) >= 25
     has_code = len((code or "").strip()) >= 20
+    mentions_tradeoff = any(x in t.lower() for x in ["tradeoff", "latency", "throughput", "space", "time complexity", "big o", "o("])
 
-    if not has_ps and not has_code and not has_tech:
+    if not has_expl and not has_code:
         return 0, "Prestructural: no coherent approach demonstrated in the recorded interaction."
-    if has_ps and not has_code:
-        return 2, "Multistructural: mentioned relevant pieces of an approach, but did not implement/validate."
-    if has_ps and has_code and not has_tech:
-        return 3, "Relational: coherent approach + implementation, but limited explicit tradeoff/technical depth."
-    if has_ps and has_code and has_tech:
-        return 4, "Extended Abstract: integrated approach, implementation, and tradeoffs/technical reasoning."
-    return 1, "Unistructural: one relevant idea, but big gaps in development or validation."
+    if has_expl and not has_code:
+        return 2, "Multistructural: some reasoning mentioned, but no implementation/validation."
+    if has_expl and has_code and not mentions_tradeoff:
+        return 3, "Relational: coherent reasoning + implementation, but limited explicit tradeoff/technical depth."
+    if has_expl and has_code and mentions_tradeoff:
+        return 4, "Extended Abstract: approach, implementation, and tradeoffs/complexity reasoning integrated."
+    return 1, "Unistructural: a single relevant idea shown, but big gaps remain."
 
-def _deterministic_scores(ctx: Dict[str, Any]) -> Dict[str, Any]:
+def _rigorous_scores(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Main scoring pipeline:
+    1) apply hard gates (prevent inflated defaults)
+    2) attempt LLM rubric scoring with evidence quotes
+    3) verify evidence quotes exist
+    4) apply caps based on attempt size and objective correctness
+    5) compute totals + labels
+    """
+    gates = _score_hard_gates(ctx)
+
+    # Use LLM rubric scoring; reject if hallucinated evidence
+    llm = _llm_rubric_scoring(ctx)
+    scored = llm if llm is not None else _fallback_conservative_scoring(ctx)
+
+    cat = scored["category_scores"]
+
+    # If gates force minimal totals, enforce them
+    if gates.get("forced"):
+        forced_cat = gates.get("category_scores") or {}
+        for k, v in forced_cat.items():
+            cat[k] = int(v)
+        cap_total = int(gates.get("cap_total", 0))
+    else:
+        cap_total = int(gates.get("cap_total", 100))
+
+    # Enforce basic consistency: no code => code_implementation must be low
+    code = (ctx.get("candidate_code") or "").strip()
+    if len(code) < 20:
+        cat["code_implementation"] = min(cat["code_implementation"], 3)
+
+    # If no evidence quotes AND no objective signals, prevent high scores
+    pr = ctx.get("pass_rate")
+    total_quotes = 0
+    if isinstance(scored.get("evidence_quotes"), dict):
+        for k in scored["evidence_quotes"].values():
+            if isinstance(k, list):
+                total_quotes += len(k)
+
+    if total_quotes == 0 and pr is None and _count_user_turns(ctx.get("transcript") or []) <= 1:
+        # extremely conservative cap
+        cap_total = min(cap_total, 25)
+
+    total = int(cat["communication"] + cat["problem_solving"] + cat["technical_competency"] + cat["code_implementation"])
+    total = int(max(0, min(100, total, cap_total)))
+
     transcript = ctx.get("transcript") or []
-    user_words = _count_user_words(transcript)
-    user_turns = _count_user_turns(transcript)
     latest_user = _extract_latest_user_text(transcript)
-    code = ctx.get("candidate_code") or ""
     expl = ctx.get("candidate_explanation") or ""
-
-    comm = _communication_score(user_words, latest_user)
-    ps = _problem_solving_score(user_turns, user_words, latest_user, expl)
-    tech = _technical_score(user_turns, user_words, latest_user, expl)
-    code_score = _code_score(code, ctx.get("pass_rate"))
-
-    total = int(max(0, min(100, comm + ps + tech + code_score)))
     solo, solo_just = _solo_level(latest_user, code, expl)
 
     return {
         "category_scores": {
-            "communication": comm,
-            "problem_solving": ps,
-            "technical_competency": tech,
-            "code_implementation": code_score
+            "communication": int(cat["communication"]),
+            "problem_solving": int(cat["problem_solving"]),
+            "technical_competency": int(cat["technical_competency"]),
+            "code_implementation": int(cat["code_implementation"]),
         },
         "total_score_0_100": total,
         "overall_assessment": _label_from_score(total),
         "hire_likelihood_percent": _hire_likelihood_percent(total),
         "solo_level": solo,
-        "solo_justification": solo_just
+        "solo_justification": solo_just,
+        "evidence_quotes": scored.get("evidence_quotes") or {
+            "communication": [],
+            "problem_solving": [],
+            "technical_competency": [],
+            "code_implementation": [],
+        },
+        "rationales": scored.get("rationales") or {}
     }
 
 # ---------------------------
 # Feedback generation (LLM optional but grounded + validated)
 # ---------------------------
-
-def _quotes_exist(quote: str, ctx: Dict[str, Any]) -> bool:
-    q = (quote or "").strip()
-    if not q or q == "N/A":
-        return False
-    blob = (ctx.get("transcript_text") or "") + "\n\n" + (ctx.get("candidate_code") or "")
-    return q in blob
 
 def _build_fallback_feedback(ctx: Dict[str, Any], scores: Dict[str, Any]) -> Dict[str, Any]:
     transcript = ctx.get("transcript") or []
@@ -398,32 +625,42 @@ def _build_fallback_feedback(ctx: Dict[str, Any], scores: Dict[str, Any]) -> Dic
     comm = scores["category_scores"]["communication"]
     ps = scores["category_scores"]["problem_solving"]
     tech = scores["category_scores"]["technical_competency"]
+    code_score = scores["category_scores"]["code_implementation"]
 
-    strengths = []
-    improvements = []
-    recs = []
+    strengths: List[str] = []
+    improvements: List[str] = []
+    recs: List[str] = []
 
-    if comm > 0:
+    if comm >= 10:
+        strengths.append("Your explanation was reasonably clear and structured in places.")
+    elif comm > 0:
         strengths.append("You communicated at least one clear thought in the interview.")
     else:
         improvements.append("There wasn’t enough explanation in your messages to assess communication.")
 
-    if ps > 0:
-        strengths.append("You showed some problem-solving intent (approach/steps/constraints).")
+    if ps >= 10:
+        strengths.append("You stated a coherent approach and showed some decomposition/validation.")
+    elif ps > 0:
+        strengths.append("You showed some problem-solving intent, but it wasn’t fully developed.")
     else:
         improvements.append("No clear approach was stated, so problem solving couldn’t really be evaluated.")
 
-    if tech > 0:
-        strengths.append("You referenced at least one technical concept or tradeoff.")
+    if tech >= 10:
+        strengths.append("You demonstrated some technical depth and correctness in reasoning.")
+    elif tech > 0:
+        strengths.append("You referenced at least one technical concept.")
     else:
         improvements.append("No technical depth/tradeoffs were demonstrated in the transcript.")
 
-    if (ctx.get("candidate_code") or "").strip():
-        strengths.append("You provided code that can be assessed at a basic level.")
-        recs.append("Add 2–3 small test cases and walk through one example out loud.")
+    if code_score >= 10:
+        strengths.append("You provided code that is substantial enough to assess.")
+        recs.append("Add 2–3 small tests and walk through one example to validate correctness.")
+    elif code_score > 0:
+        improvements.append("Code was present but too limited/uncertain to score highly.")
+        recs.append("Start with a minimal correct solution, then harden edge cases and simplify.")
     else:
         improvements.append("No meaningful code was provided, so implementation can’t be evaluated.")
-        recs.append("Write a minimal correct implementation first, then improve edge cases and complexity.")
+        recs.append("Write a minimal working implementation, then iterate.")
 
     recs.append("Ask 1–2 clarifying questions before committing to assumptions.")
     recs.append("State time and space complexity once your approach is set.")
@@ -432,7 +669,6 @@ def _build_fallback_feedback(ctx: Dict[str, Any], scores: Dict[str, Any]) -> Dic
     improvements = improvements[:3] if improvements else ["Keep going: add more reasoning and validation."]
     recs = recs[:3] if recs else ["Provide a fuller attempt (approach + code) for deeper evaluation."]
 
-    # Legacy schema wants strings per category
     final_eval = {
         "communication": _bucket_from_0_25(scores["category_scores"]["communication"]),
         "problem_solving": _bucket_from_0_25(scores["category_scores"]["problem_solving"]),
@@ -447,7 +683,13 @@ def _build_fallback_feedback(ctx: Dict[str, Any], scores: Dict[str, Any]) -> Dic
         "examples_of_what_went_well": f"Code excerpt (if any):\n{code_quote}"
     }
 
-    return {"strengths": strengths, "improvements": improvements, "recommendations": recs, "final_eval": final_eval, "detailed": detailed}
+    return {
+        "strengths": strengths,
+        "improvements": improvements,
+        "recommendations": recs,
+        "final_eval": final_eval,
+        "detailed": detailed
+    }
 
 def _llm_grounded_feedback(ctx: Dict[str, Any], scores: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
@@ -485,7 +727,7 @@ Transcript:
 Candidate code:
 {ctx["candidate_code"]}
 
-Deterministic scores (do not change these):
+Final scores (do not change these):
 {json.dumps(scores, indent=2)}
 """.strip()
 
@@ -498,9 +740,10 @@ Deterministic scores (do not change these):
 
     # Validate quotes exist
     eq = parsed.get("evidence_quotes", {}) or {}
+    blob = (ctx.get("transcript_text") or "") + "\n\n" + (ctx.get("candidate_code") or "")
     for k in ["communication", "problem_solving", "technical_competency", "code_implementation"]:
         q = (eq.get(k) or "").strip()
-        if q != "N/A" and not _quotes_exist(q, ctx):
+        if q != "N/A" and not _contains_quote(q, blob):
             return None
 
     return parsed
@@ -513,8 +756,8 @@ def evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     input_data = (state.get("input") or [])[-1] if state.get("input") else {}
     ctx = _prepare_context(input_data)
 
-    # Deterministic scoring (ground truth)
-    scores = _deterministic_scores(ctx)
+    # Rigorous scoring (rubric + evidence verification + hard caps)
+    scores = _rigorous_scores(ctx)
 
     # Feedback: try LLM grounded, else fallback
     llm_fb = _llm_grounded_feedback(ctx, scores)
@@ -523,6 +766,7 @@ def evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     strengths = fallback["strengths"]
     improvements = fallback["improvements"]
     recs = fallback["recommendations"]
+
     evidence_quotes = {
         "communication": "N/A",
         "problem_solving": "N/A",
@@ -576,30 +820,29 @@ def evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
             "overall_assessment": scores["overall_assessment"],
             "hire_likelihood_percent": scores["hire_likelihood_percent"],
             "major_failures": ctx.get("major_failures") or [],
-            "pass_rate": ctx.get("pass_rate")
+            "pass_rate": ctx.get("pass_rate"),
+            "evidence_quotes_debug": scores.get("evidence_quotes", {}),
+            "rationales_debug": scores.get("rationales", {}),
         }
     }
 
     return state
 
-
 def partial_evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     input_data = (state.get("input") or [])[-1] if state.get("input") else {}
     ctx = _prepare_context(input_data)
 
-    scores = _deterministic_scores(ctx)
+    scores = _rigorous_scores(ctx)
     cat = scores["category_scores"]
     total = scores["total_score_0_100"]
 
-    # Category feedback (grounded)
     transcript = ctx.get("transcript") or []
-    latest_user = _extract_latest_user_text(transcript)
     first_user_quote = _first_quote_from_transcript(transcript)
 
     def fb_for(score_0_25: int, label: str) -> str:
-        if score_0_25 == 0:
+        if score_0_25 <= 3:
             return _na_feedback(ctx["student_id"], label)
-        return f"Some evidence shown. Example: {first_user_quote}"
+        return f"Evidence exists in the transcript/code. Example: {first_user_quote}"
 
     parsed = {
         "student_id": ctx["student_id"],
@@ -621,7 +864,7 @@ def partial_evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
         },
         "detailed_feedback": {
             "strengths": " | ".join([_first_quote_from_transcript(transcript)]) if transcript else "N/A",
-            "areas_for_improvement": "Add a clearer approach + validation to enable deeper scoring.",
+            "areas_for_improvement": "Add a clearer approach + validation (tests/examples) to enable deeper scoring.",
             "specific_recommendations": "Ask clarifying questions, state complexity, and write a minimal working solution."
         }
     }
@@ -630,285 +873,9 @@ def partial_evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     state["partial_evaluation_result"] = _model_dump(obj)
     return state
 
-# class EvaluationCategory(BaseModel):
-#     communication: str
-#     problem_solving: str
-#     technical_competency: str
-#     code_implementation: str
-#     examples_of_what_went_well: str
-
-# class EvaluationSchema(BaseModel):
-#     student_id: str
-#     question_id: str
-#     final_evaluation: EvaluationCategory
-#     detailed_feedback: EvaluationCategory
-#     total_score:str
-#     overall_assessment:str
-
-# def evaluation_agent(state: dict) -> dict:
-#     """
-#     Calls GPT to output JSON matching the EvaluationSchema,
-#     storing it in state["evaluation_result"]. 
-#     This is an 'intermediate' grading each time the user responds.
-#     """
-#     input_data = state["input"][-1]
-
-#     prompt = f"""
-#         You are an AI evaluation agent for a coding interview.
-#         Output valid JSON only matching this evaluation schema (no markdown, no extra keys):
-
-#         EvaluationSchema:
-#         - student_id (string)
-#         - question_id (string)
-#         - final_evaluation (EvaluationCategory):
-#             * communication (string)
-#             * problem_solving (string)
-#             * technical_competency (string)
-#             * code_implementation (string)
-#             * examples_of_what_went_well (string)
-#         - detailed_feedback (EvaluationCategory):
-#             * communication (string)
-#             * problem_solving (string)
-#             * technical_competency (string)
-#             * code_implementation (string)
-#             * examples_of_what_went_well (string)
-#         - total_score (string)
-#         - overall_assessment (string)
-            
-#         - feedback and examples of what they said / coded well and what they could've done better
-        
-#         Context you have:
-#         - Interview Question: {input_data["interview_question"]}
-#         - User's Summary: {input_data["summary_of_past_response"]}
-#         - User's Code: {input_data["new_code_written"]}
-
-#         Score each category carefully:
-
-#         COMMUNICATION (0-10):
-#         • 9-10: Exceptional - Clear, structured thinking, explains trade-offs, asks great questions
-#         • 7-8: Strong - Articulate, explains reasoning well, communicates effectively
-#         • 5-6: Competent - Gets ideas across but could be clearer, some gaps in explanation
-#         • 3-4: Developing - Unclear at times, struggles to articulate complex thoughts  
-#         • 0-2: Poor - Hard to follow, minimal or confusing communication
-
-#         PROBLEM SOLVING (0-10):
-#         • 9-10: Exceptional - Optimal approach, considers all edge cases, elegant solution
-#         • 7-8: Strong - Logical decomposition, good solution, handles most cases
-#         • 5-6: Competent - Basic approach, working but not optimal, misses some edge cases
-#         • 3-4: Developing - Flawed methodology, incomplete solution, poor decomposition
-#         • 0-2: Poor - No systematic approach, cannot break down the problem
-
-#         TECHNICAL COMPETENCY (0-10):
-#         • 9-10: Exceptional - Mastery of concepts, deep understanding, applies advanced techniques
-#         • 7-8: Strong - Solid technical knowledge, applies concepts correctly, minor gaps
-#         • 5-6: Competent - Basic understanding, several technical issues, needs guidance
-#         • 3-4: Developing - Significant technical gaps, fundamental misunderstandings
-#         • 0-2: Poor - Lacks basic technical knowledge, cannot apply concepts
-
-#         CODE IMPLEMENTATION (0-10):
-#         • 9-10: Exceptional - Production-ready, clean, maintainable, follows best practices
-#         • 7-8: Strong - Clean structure, readable, minor style issues
-#         • 5-6: Competent - Works but needs refactoring, some quality issues
-#         • 3-4: Developing - Poorly structured, hard to read, significant problems
-#         • 0-2: Poor - Unreadable, buggy, or minimal code
-
-#         CALCULATE TOTAL SCORE (0-40):
-#         Add all category scores together.
-
-#         DETERMINE OVERALL ASSESSMENT:
-#         • Strong Hire: 34-40 points
-#         • Hire: 28-33 points  
-#         • No Hire: 20-27 points
-#         • Strong No Hire: 0-19 points
-
-#         For feedback, be specific and actionable. Mention concrete examples from their response.
-
-#         Return only valid JSON, no other text.
-#         """
-#         # Instruct GPT to output valid JSON that matches our Pydantic schema, no extra keys
-#     # Make sure the prompt includes the relevant info: question, summary, code
-# #     prompt = f"""
-# # You are an AI evaluation agent for a coding interview I need you to be extremely strict! 
-# # Produce your answer as valid JSON ONLY, matching this schema exactly:
-
-# # EvaluationSchema:
-# # - student_id (string)
-# # - question_id (string)
-# # - final_evaluation (EvaluationCategory):
-# #     * communication (string)
-# #     * problem_solving (string)
-# #     * technical_competency (string)
-# #     * examples_of_what_went_well (string)
-# # - detailed_feedback (EvaluationCategory):
-# #     * communication (string)
-# #     * problem_solving (string)
-# #     * technical_competency (string)
-# #     * examples_of_what_went_well (string)
-# # - feedback and examples of what they said / coded well and what they could've done better
-
-# # NO extra keys, no markdown.
-
-# # Context you have:
-# # - Interview Question: {input_data["interview_question"]}
-# # - User's Summary: {input_data["summary_of_past_response"]}
-# # - User's Code: {input_data["new_code_written"]}
-
-# # Scoring categories:
-# # - "Strong Hire", "Hire", "No Hire", "Strong No Hire"
-
-# # Only output valid JSON, no code blocks, no quotes around keys besides JSON structure.
-# #     """
-
-# # {
-#         # "student_id": "string",
-#         # "question_id": "string",
-#         # "category_scores": {
-#         #     "communication": "integer 0-10",
-#         #     "problem_solving": "integer 0-10", 
-#         #     "technical_competency": "integer 0-10",
-#         #     "code_implementation": "integer 0-10"
-#         # },
-#         # "total_score": "integer 0-40",
-#         # "overall_assessment": "string: 'Strong Hire', 'Hire', 'No Hire', 'Strong No Hire'",
-#         # "category_feedback": {
-#         #     "communication": "string",
-#         #     "problem_solving": "string",
-#         #     "technical_competency": "string", 
-#         #     "code_implementation": "string"
-#         # },
-#         # "detailed_feedback": {
-#         #     "strengths": "string",
-#         #     "areas_for_improvement": "string",
-#         #     "specific_recommendations": "string"
-#         # }
-#         # }
-
-#     response = client.chat.completions.create(
-#         model="gpt-4o",
-#         messages=[
-#             {"role": "system", "content": "You are an AI that outputs valid JSON for evaluation."},
-#             {"role": "user", "content": prompt}
-#         ]
-#     )
-
-#     raw_text = response.choices[0].message.content.strip()
-#     state["output"] = [raw_text]  # store raw text from GPT in 'output' for reference
-
-#     # Parse JSON
-#     try:
-        
-#         parsed = json.loads(raw_text)
-#         if "EvaluationSchema" in parsed:
-#             inner_data = parsed["EvaluationSchema"]  # Extract the actual evaluation data
-#         else:
-#             inner_data = parsed
-#         # Validate with Pydantic
-#         evaluation_obj = EvaluationSchema(**inner_data)
-#         state["evaluation_result"] = evaluation_obj.dict()
-#     except (json.JSONDecodeError, ValueError) as e:
-#         state["evaluation_result"] = {
-#             "error": f"Could not parse JSON: {e}",
-#             "raw_output": raw_text
-#         }
-#     return state
-
-# def partial_evaluation_agent(state: dict) -> dict:
-#     """
-#     Runs on every user response, outputting JSON matching the same schema as the final evaluator.
-#     Ensures student_id and question_id fields are included.
-#     """
-#     input_data = state["input"][-1]
-
-#     # Retrieve these from input_data or set to "unknown" if not provided
-#     student_id = input_data.get("student_id", "unknown")
-#     question_id = input_data.get("question_id", "unknown")
-
-#     # If you keep track of previous partial eval
-#     previous_eval = input_data.get("previous_partial_eval", {})
-#     prev_eval_text = json.dumps(previous_eval, indent=2) if previous_eval else "No previous partial evaluation"
-
-#     prompt = f"""
-# You are an AI partial evaluator for a coding interview. 
-# Output valid JSON only, matching this schema exactly (no extra keys, no markdown):
-
-# EvaluationSchema:
-# - student_id (string)
-# - question_id (string)
-# - partial_eval (EvaluationCategory):
-#     * communication (string)
-#     * problem_solving (string)
-#     * technical_competency (string)
-#     * examples_of_what_went_well (string)
-# - detailed_feedback (EvaluationCategory):
-#     * communication (string)
-#     * problem_solving (string)
-#     * technical_competency (string)
-#     * examples_of_what_went_well (string)
-
-# Here is the previous partial evaluation (if any):
-# {prev_eval_text}
-
-# Context:
-# - Student ID: {student_id}
-# - Question ID: {question_id}
-# - Question: {input_data["interview_question"]}
-# - Summary: {input_data["summary_of_past_response"]}
-# - Code: {input_data["new_code_written"]}
-
-# Scoring: "Strong Hire", "Hire", "No Hire", "Strong No Hire".
-
-# Return valid JSON only, including the student_id and question_id.
-# """
-
-#     response = client.chat.completions.create(
-#         model="gpt-4o",
-#         messages=[
-#             {"role": "system", "content": "You are an AI that outputs valid JSON for partial evaluation."},
-#             {"role": "user", "content": prompt}
-#         ]
-#     )
-
-#     raw_text = response.choices[0].message.content.strip()
-#     state["output"] = [raw_text]
-
-#     # Parse JSON
-#     try:
-#         parsed = json.loads(raw_text)
-#         # Validate with your existing Pydantic schema that requires these fields
-#         evaluation_obj = EvaluationSchema(**parsed)
-#         state["partial_evaluation_result"] = evaluation_obj.dict()
-#     except (json.JSONDecodeError, ValueError) as e:
-#         state["partial_evaluation_result"] = {
-#             "error": f"Could not parse JSON: {e}",
-#             "raw_output": raw_text
-#         }
-
-#     return state
-
-
-
-
-{"4": 
-{"student_id": "12345", 
- "question_id": "validate_parentheses", 
- "final_evaluation": 
-    {"communication": "Hire", 
-    "problem_solving": "Strong Hire", 
-    "technical_competency": "Hire", 
-    "examples_of_what_went_well": "The solution demonstrates clear understanding of stack-based algorithmic approaches, correct implementation of mappings for accurate parentheses validation, and concise code structure."}, 
-    "detailed_feedback": 
-        {"communication": "The user explained their thought process clearly and confidently declined an enhancement suggestion while providing reasoning behind their decision.", 
-        "problem_solving": "The use of a dictionary for mapping closing brackets to their respective opening brackets and maintaining stack consistency shows excellent problem-solving ability. The user demonstrated an understanding of edge cases such as empty stack handling.",
-        "technical_competency": "The code aligns closely with best practices for solving this type of problem. While the solution is efficient, it does not handle non-bracket characters, limiting its versatility.",
-        "examples_of_what_went_well": "The implementation is correct, concise, and covers all valid input cases for bracket validation. The stack-based logic is efficient and executed correctly."
-        }
-    }
-}
-
-
 # ---------------------------------------------------------------------------------------
 # Video analysis: kept exactly as callable function name analyze_interview_video()
-# (unchanged behavior; this is independent from the evaluation scoring fixes above)
+# (unchanged behavior; intentionally isolated from evaluation scoring)
 # ---------------------------------------------------------------------------------------
 
 def analyze_interview_video(video_path: str):
@@ -1032,8 +999,6 @@ def analyze_interview_video(video_path: str):
             def analyze_video(self, video_path: str) -> _Dict:
                 cap = cv2.VideoCapture(video_path)
                 reported_fps = cap.get(cv2.CAP_PROP_FPS)
-                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
                 fps = 30.0 if reported_fps > 60 or reported_fps <= 0 else reported_fps
 
                 face_mesh = self.mp_face_mesh.FaceMesh(
@@ -1194,4 +1159,3 @@ def analyze_interview_video(video_path: str):
             'coaching_feedback': [],
             'summary_stats': {}
         }
-
