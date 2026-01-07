@@ -37,9 +37,10 @@ PROMPT_TEMPLATES = {
             Be concise. No more than 3 sentences.
             """,
                 "nudge_user": """
-            The user has not written any code in awhile. 
-            If they have written little code, ask about their approach to the question and their thoughts.
-            Otherwise, evaluate their code and provide small hints to help the user proceed.
+            The user has not written any code in awhile. Review the user's code and provide some guidance.
+        1. EMPTY/MINIMAL CODE: If the user has only written a few lines, do not give technical hints. Instead, probe their mental model. Ask about their high-level strategy or how they plan to structure their initial solution.
+        2. PARTIAL/STUCK CODE: If code exists but hasn't changed, identify one specific logical hurdle (e.g., an unclosed loop, a missing base case in recursion, or a questionable variable name). Ask a clarifying question that gently points them toward that hurdle without giving the answer.
+        3. COMPLETED/REPETITIVE CODE: If the code looks functional but the user is idling, ask about time complexity or a potential edge case (e.g., null inputs or empty arrays).
             You're a friendly and supportive coding interviewer having a conversation. Be casual, encouraging, and ask questions naturally.
             Add small human touches to sound natural, but keep it professional.
             NO EMOJI
