@@ -6,8 +6,11 @@ from pydantic import BaseModel, Field
 from openai import AzureOpenAI
 
 # ---------------------------
+
 # Azure OpenAI setup
+
 # ---------------------------
+
 endpoint = os.getenv("OPENAI_ENDPOINT")
 key = os.getenv("OPENAI_SECRETKEY")
 deployment = os.getenv("OPENAI_DEPLOYMENT", "gpt-4o")
@@ -1159,3 +1162,4 @@ def analyze_interview_video(video_path: str):
             'coaching_feedback': [],
             'summary_stats': {}
         }
+
