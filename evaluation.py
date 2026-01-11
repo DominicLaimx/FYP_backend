@@ -22,10 +22,12 @@ HireLabel = Literal["Strong Hire", "Hire", "No Hire", "Strong No Hire"]
 ModeLabel = Literal["partial", "final"]
 SOLOLevel = Literal[0, 1, 2, 3, 4]
 
+
 def _model_dump(m: Any) -> Dict[str, Any]:
     if hasattr(m, "model_dump"):
         return m.model_dump()
     return m.dict()
+
 
 def _safe_json_loads(text: str) -> Dict[str, Any]:
     text = (text or "").strip()
@@ -37,6 +39,7 @@ def _safe_json_loads(text: str) -> Dict[str, Any]:
         if start != -1 and end != -1 and end > start:
             return json.loads(text[start:end + 1])
         raise
+
 
 def _call_llm_json(messages: List[Dict[str, str]]) -> str:
     try:
@@ -54,6 +57,7 @@ def _call_llm_json(messages: List[Dict[str, str]]) -> str:
         )
     return (resp.choices[0].message.content or "").strip()
 
+
 def _label_from_score(score: int) -> HireLabel:
     if score >= 85:
         return "Strong Hire"
@@ -62,6 +66,7 @@ def _label_from_score(score: int) -> HireLabel:
     if score >= 50:
         return "No Hire"
     return "Strong No Hire"
+
 
 def _hire_likelihood_percent(score_0_100: int) -> int:
     s = max(0, min(100, int(score_0_100)))
@@ -85,6 +90,7 @@ def _hire_likelihood_percent(score_0_100: int) -> int:
         return 88
     return 95
 
+
 def _compute_pass_rate(tests_passed: Optional[int], tests_total: Optional[int]) -> Optional[float]:
     if tests_passed is None or tests_total in (None, 0):
         return None
@@ -92,6 +98,7 @@ def _compute_pass_rate(tests_passed: Optional[int], tests_total: Optional[int]) 
         return max(0.0, min(1.0, float(tests_passed) / float(tests_total)))
     except Exception:
         return None
+
 
 def compact_transcript(ts: List[Dict[str, str]], max_turns: int = 30) -> str:
     if not ts:
@@ -104,6 +111,7 @@ def compact_transcript(ts: List[Dict[str, str]], max_turns: int = 30) -> str:
         lines.append(f"{role}: {content}")
     return "\n".join(lines)
 
+
 def _count_user_words(transcript: List[Dict[str, str]]) -> int:
     words = 0
     for t in transcript:
@@ -112,14 +120,17 @@ def _count_user_words(transcript: List[Dict[str, str]]) -> int:
             words += len(re.findall(r"\b\w+\b", content))
     return words
 
+
 def _count_user_turns(transcript: List[Dict[str, str]]) -> int:
     return sum(1 for t in transcript if (t.get("role") or "").lower() == "user")
+
 
 def _extract_latest_user_text(transcript: List[Dict[str, str]]) -> str:
     for t in reversed(transcript):
         if (t.get("role") or "").lower() == "user":
             return (t.get("content") or "").strip()
     return ""
+
 
 def _first_quote_from_transcript(transcript: List[Dict[str, str]]) -> str:
     for t in transcript:
@@ -129,6 +140,7 @@ def _first_quote_from_transcript(transcript: List[Dict[str, str]]) -> str:
                 return content[:160]
     return "N/A"
 
+
 def _quote_from_code(code: str) -> str:
     c = (code or "").strip()
     if not c:
@@ -136,11 +148,14 @@ def _quote_from_code(code: str) -> str:
     lines = [ln.rstrip("\n") for ln in c.splitlines() if ln.strip()]
     return ("\n".join(lines[:6]))[:220] if lines else c[:220]
 
+
 def _na_feedback(student_id: str, aspect_name: str) -> str:
     return f"N/A — {student_id} didn’t provide enough evidence to assess {aspect_name} in this attempt."
 
+
 def _normalize_ws(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip())
+
 
 def _contains_quote(quote: str, blob: str) -> bool:
     q = (quote or "").strip()
@@ -150,11 +165,13 @@ def _contains_quote(quote: str, blob: str) -> bool:
         return True
     return _normalize_ws(q) in _normalize_ws(blob or "")
 
+
 class EvaluationCategoryLegacy(BaseModel):
     communication: str
     problem_solving: str
     technical_competency: str
     examples_of_what_went_well: str
+
 
 class EvaluationSchemaLegacy(BaseModel):
     student_id: str
@@ -165,6 +182,7 @@ class EvaluationSchemaLegacy(BaseModel):
     overall_assessment: HireLabel
     hire_likelihood_percent: int = Field(ge=0, le=100)
 
+
 class PartialEvaluationSchema(BaseModel):
     student_id: str
     question_id: str
@@ -174,6 +192,7 @@ class PartialEvaluationSchema(BaseModel):
     hire_likelihood_percent: int = Field(ge=0, le=100)
     category_feedback: Dict[str, str]
     detailed_feedback: Dict[str, str]
+
 
 def _prepare_context(input_data: Dict[str, Any]) -> Dict[str, Any]:
     student_id = str(input_data.get("student_id", "unknown"))
@@ -225,9 +244,11 @@ def _prepare_context(input_data: Dict[str, Any]) -> Dict[str, Any]:
         "major_failures": major_failures,
     }
 
+
 def _bucket_from_0_25(score_0_25: int) -> str:
     s100 = int(max(0, min(100, round(score_0_25 * 4))))
     return _label_from_score(s100)
+
 
 def _score_hard_gates(ctx: Dict[str, Any]) -> Dict[str, Any]:
     transcript = ctx.get("transcript") or []
@@ -273,6 +294,7 @@ def _score_hard_gates(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "cap_total": cap_total,
         "reason": "Gating applied.",
     }
+
 
 def _llm_rubric_scoring(ctx: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     system_msg = (
@@ -393,6 +415,7 @@ major_failures={json.dumps(ctx.get("major_failures") or [], ensure_ascii=False)}
     parsed["evidence_quotes"] = eq
     return parsed
 
+
 def _fallback_conservative_scoring(ctx: Dict[str, Any]) -> Dict[str, Any]:
     transcript = ctx.get("transcript") or []
     latest_user = _extract_latest_user_text(transcript)
@@ -448,6 +471,7 @@ def _fallback_conservative_scoring(ctx: Dict[str, Any]) -> Dict[str, Any]:
         },
     }
 
+
 def _solo_level(latest_user: str, code: str, expl: str) -> Tuple[int, str]:
     t = (latest_user + " " + (expl or "")).strip()
     has_expl = len(re.findall(r"\b\w+\b", t)) >= 25
@@ -462,6 +486,7 @@ def _solo_level(latest_user: str, code: str, expl: str) -> Tuple[int, str]:
     if has_expl and has_code and mentions_tradeoff:
         return 4, "Extended Abstract: approach, implementation, and tradeoffs/complexity reasoning integrated."
     return 1, "Unistructural: a single relevant idea shown, but big gaps remain."
+
 
 def _rigorous_scores(ctx: Dict[str, Any]) -> Dict[str, Any]:
     gates = _score_hard_gates(ctx)
@@ -513,6 +538,7 @@ def _rigorous_scores(ctx: Dict[str, Any]) -> Dict[str, Any]:
         },
         "rationales": scored.get("rationales") or {},
     }
+
 
 def _build_fallback_feedback(ctx: Dict[str, Any], scores: Dict[str, Any]) -> Dict[str, Any]:
     transcript = ctx.get("transcript") or []
@@ -580,6 +606,7 @@ def _build_fallback_feedback(ctx: Dict[str, Any], scores: Dict[str, Any]) -> Dic
         "detailed": detailed,
     }
 
+
 def _llm_grounded_feedback(ctx: Dict[str, Any], scores: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     system_msg = "You are a strict interview feedback writer. Use ONLY the transcript and code. Return ONLY valid JSON."
     prompt = f"""
@@ -624,10 +651,14 @@ Final scores (do not change these):
             return None
     return parsed
 
+
 def evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     input_data = (state.get("input") or [])[-1] if state.get("input") else {}
     ctx = _prepare_context(input_data)
     scores = _rigorous_scores(ctx)
+
+    ten_point_score = int(max(1, min(10, round(scores["total_score_0_100"] / 10))))
+
     llm_fb = _llm_grounded_feedback(ctx, scores)
     fallback = _build_fallback_feedback(ctx, scores)
     strengths = fallback["strengths"]
@@ -664,6 +695,7 @@ def evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
         "total_score_0_100": scores["total_score_0_100"],
         "overall_assessment": scores["overall_assessment"],
         "hire_likelihood_percent": scores["hire_likelihood_percent"],
+        "total_score_1_10": ten_point_score,
     }
     obj = EvaluationSchemaLegacy(**legacy)
     state["evaluation_result"] = _model_dump(obj)
@@ -681,9 +713,11 @@ def evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
             "pass_rate": ctx.get("pass_rate"),
             "evidence_quotes_debug": scores.get("evidence_quotes", {}),
             "rationales_debug": scores.get("rationales", {}),
+            "total_score_1_10": ten_point_score,
         }
     }
     return state
+
 
 def partial_evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     input_data = (state.get("input") or [])[-1] if state.get("input") else {}
@@ -691,6 +725,9 @@ def partial_evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     scores = _rigorous_scores(ctx)
     cat = scores["category_scores"]
     total = scores["total_score_0_100"]
+
+    ten_point_score = int(max(1, min(10, round(total / 10))))
+
     transcript = ctx.get("transcript") or []
     first_user_quote = _first_quote_from_transcript(transcript)
 
@@ -722,10 +759,12 @@ def partial_evaluation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
             "areas_for_improvement": "Add a clearer approach plus validation (tests/examples) to enable deeper scoring.",
             "specific_recommendations": "Ask clarifying questions, state complexity, and write a minimal working solution.",
         },
+        "total_score_1_10": ten_point_score,
     }
     obj = PartialEvaluationSchema(**parsed)
     state["partial_evaluation_result"] = _model_dump(obj)
     return state
+
 
 def analyze_interview_video(video_path: str):
     try:
@@ -982,5 +1021,4 @@ def analyze_interview_video(video_path: str):
             "coaching_feedback": [],
             "summary_stats": {},
         }
-
 
