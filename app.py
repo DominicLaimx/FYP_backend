@@ -273,7 +273,8 @@ def node9(state: State) -> State:
     templates = _get_mode_templates(mode)
 
     prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. {templates["nudge_user"]}"""
-
+    print("\n\n\n\n DOM node9 \n\n\n\n")
+    print(prompt)
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
