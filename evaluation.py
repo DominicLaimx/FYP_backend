@@ -173,6 +173,9 @@ def evaluation_agent(state: dict) -> dict:
     """
     input_data = state["input"][-1]
 
+    solo_result = solo_agent(state)
+    state["solo_result"] = solo_result["solo_result"]
+
     prompt = f"""
         You are an AI evaluation agent for a coding interview.
         For each category, also include:
@@ -273,30 +276,26 @@ def evaluation_agent(state: dict) -> dict:
 
     # Parse JSON
     try:
-        
         parsed = json.loads(raw_text)
         if "EvaluationSchema" in parsed:
-            inner_data = parsed["EvaluationSchema"]  # Extract the actual evaluation data
+            inner_data = parsed["EvaluationSchema"]
         else:
             inner_data = parsed
-        # Validate with Pydantic
-        evaluation_obj = EvaluationSchema(**inner_data)
         
-        categories = evaluation_obj.final_evaluation
+        categories = inner_data["final_evaluation"]
         total_score = (
-            categories.communication.score +
-            categories.problem_solving.score +
-            categories.technical_competency.score +
-            categories.code_implementation.score
+            categories["communication"]["score"] +
+            categories["problem_solving"]["score"] +
+            categories["technical_competency"]["score"] +
+            categories["code_implementation"]["score"]
         )
-        evaluation_data = evaluation_obj.dict()
-        evaluation_data["total_score"] = total_score
-        evaluation_data["overall_assessment"] = overall_assessment_from_score(total_score)
         
-        state["evaluation_result"] = evaluation_data
+        inner_data["total_score"] = total_score 
+        inner_data["overall_assessment"] = overall_assessment_from_score(total_score)
+        
+        evaluation_obj = EvaluationSchema(**inner_data)
+        state["evaluation_result"] = evaluation_obj.dict()
 
-        solo_result = solo_agent(state)
-        state["evaluation_result"]["solo_level"] = state["solo_result"]
     except (json.JSONDecodeError, ValueError) as e:
         state["evaluation_result"] = {
             "error": f"Could not parse JSON: {e}",
