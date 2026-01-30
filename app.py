@@ -31,7 +31,7 @@ from db_connector import get_user_feedback_history, update_user_progress_by_emai
 from prompt_templates import PROMPT_TEMPLATES
 from google.cloud import texttospeech
 import subprocess
-from deepface import DeepFace
+
 from PIL import Image
 import numpy as np
 
