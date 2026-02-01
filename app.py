@@ -709,7 +709,7 @@ from deepface import DeepFace
 from PIL import Image
 import numpy as np
 
-@app.route("/analyze_emotion", methods=['GET', 'OPTIONS'])
+@app.route("/analyze_emotion", methods=['POST', 'OPTIONS'])
 def analyze_emotion():
     """
     Step 1: Receive frame from frontend (multipart form-data)
