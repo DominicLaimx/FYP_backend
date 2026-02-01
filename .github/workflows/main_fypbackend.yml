@@ -108,4 +108,4 @@ jobs:
         with:
           app-name: 'AIViewbackend' # Make sure this matches your Azure App name
           publish-profile: ${{ secrets.AZURE_APP_SERVICE_PUBLISH_PROFILE }}
-          images: 'ghcr.io/${{ github.repository_owner }}/fyp_backend:latest'
+          images: 'ghcr.io/dominiclaimx/fyp_backend:latest'
