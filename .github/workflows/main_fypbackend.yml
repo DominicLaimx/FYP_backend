@@ -95,7 +95,7 @@ jobs:
       - name: Build and push Docker image
         run: |
           # Use lowercase for repo names
-          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/fyp_backend:latest
+          IMAGE_ID=ghcr.io/dominiclaimx/fyp_backend:latest
           docker build -f Dockerfile.dockerfile . -t $IMAGE_ID
           docker push $IMAGE_ID
 
