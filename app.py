@@ -854,11 +854,15 @@ def get_random(question_type):
     qn = get_random_question(question_type)
     return jsonify(qn)
 
-
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
     if request.method == "OPTIONS":
-        return jsonify({"message": "CORS Preflight OK"}), 204
+        response = make_response("", 204)
+        response.headers['Access-Control-Allow-Origin'] = 'https://mango-bush-0c99ac700.6.azurestaticapps.net'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
 
     try:
         data = request.json or {}
@@ -867,8 +871,10 @@ def login():
 
         user = get_user(email, password)
         if not user:
-            resp = jsonify({"error": "Invalid credentials"})
+            resp = make_response(jsonify({"error": "Invalid credentials"}))
             resp.status_code = 401
+            resp.headers['Access-Control-Allow-Origin'] = 'https://mango-bush-0c99ac700.6.azurestaticapps.net'
+            resp.headers['Access-Control-Allow-Credentials'] = 'true'
             return resp
 
         token = jwt.encode(
@@ -886,13 +892,56 @@ def login():
             samesite="None",
             max_age=24 * 60 * 60
         )
+        response.headers['Access-Control-Allow-Origin'] = 'https://mango-bush-0c99ac700.6.azurestaticapps.net'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
 
     except Exception as e:
         print(f"❌ ERROR in /login: {e}")
-        resp = jsonify({"error": "Internal Server Error"})
+        resp = make_response(jsonify({"error": "Internal Server Error"}))
         resp.status_code = 500
+        resp.headers['Access-Control-Allow-Origin'] = 'https://mango-bush-0c99ac700.6.azurestaticapps.net'
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
         return resp
+
+# @app.route('/login', methods=['POST', 'OPTIONS'])
+# def login():
+#     if request.method == "OPTIONS":
+#         return jsonify({"message": "CORS Preflight OK"}), 204
+
+#     try:
+#         data = request.json or {}
+#         email = data.get("email")
+#         password = data.get("password")
+
+#         user = get_user(email, password)
+#         if not user:
+#             resp = jsonify({"error": "Invalid credentials"})
+#             resp.status_code = 401
+#             return resp
+
+#         token = jwt.encode(
+#             {"user_id": user["id"], "email": user["email"], "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1)},
+#             SECRET_KEY,
+#             algorithm="HS256"
+#         )
+
+#         response = make_response(jsonify({"message": "Login successful"}))
+#         response.set_cookie(
+#             "auth_token",
+#             token,
+#             httponly=True,
+#             secure=True,
+#             samesite="None",
+#             max_age=24 * 60 * 60
+#         )
+#         return response
+
+#     except Exception as e:
+#         print(f"❌ ERROR in /login: {e}")
+#         resp = jsonify({"error": "Internal Server Error"})
+#         resp.status_code = 500
+#         return resp
 
 
 @app.route('/register', methods=['POST', 'OPTIONS'])
