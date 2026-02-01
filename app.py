@@ -31,6 +31,7 @@ from db_connector import get_user_feedback_history, update_user_progress_by_emai
 from prompt_templates import PROMPT_TEMPLATES
 from google.cloud import texttospeech
 import subprocess
+from deepface import DeepFace
 
 app = Flask(__name__)
 
@@ -704,6 +705,60 @@ def respond():
         }
 
     return Response(generate_stream(), mimetype='text/plain')
+
+# @app.route("/analyze_emotion", methods=['GET', 'OPTIONS'])
+# def analyze_emotion():
+#     """
+#     Step 1: Receive frame from frontend (multipart form-data)
+#     Step 2: Run DeepFace emotion analysis  
+#     Step 3: Return dominant emotion + full probability distribution
+#     """
+#     try:
+#         # Step 1: Get uploaded file from form-data
+#         if 'file' not in request.files:
+#             return jsonify({
+#                 "timestamp": time.time(),
+#                 "dominant_emotion": "no_file", 
+#                 "emotion_probabilities": {"no_file": 100.0},
+#                 "face_detected": False
+#             }), 200
+        
+#         file = request.files['file']
+#         if file.filename == '':
+#             return jsonify({
+#                 "timestamp": time.time(),
+#                 "dominant_emotion": "empty_file",
+#                 "emotion_probabilities": {"empty_file": 100.0}, 
+#                 "face_detected": False
+#             }), 200
+        
+#         contents = file.read()
+#         image = Image.open(io.BytesIO(contents))
+#         img_array = np.array(image)
+        
+#         result = DeepFace.analyze(
+#             img_path=img_array, 
+#             actions=['emotion'], 
+#             enforce_detection=False  # Don't fail if no face detected
+#         )[0]
+        
+#         # Step 4: Return structured response for frontend
+#         return jsonify({
+#             "timestamp": time.time(),
+#             "dominant_emotion": result["dominant_emotion"],
+#             "emotion_probabilities": result["emotion"],  # {'happy': 45.2, 'sad': 23.1, ...}
+#             "face_detected": True
+#         })
+    
+#     except Exception as e:
+#         # No face, processing error, or DeepFace failure
+#         print(f"Emotion analysis error: {e}")
+#         return jsonify({
+#             "timestamp": time.time(),
+#             "dominant_emotion": "no_face",
+#             "emotion_probabilities": {"no_face": 100.0},
+#             "face_detected": False
+#         }), 200
 
 
 from googleapiclient.discovery import build
