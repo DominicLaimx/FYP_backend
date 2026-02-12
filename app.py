@@ -152,10 +152,11 @@ def router(state: State) -> Dict:
 
 def node4(state: State) -> State:
     input_data = state["input"][-1]
+    tone = state.get("tone", "")
     mode = state.get("mode", "")
     templates = _get_mode_templates(mode)
 
-    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. {templates["guidance"]}"""
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. Tone_instructions:{tone} {templates["guidance"]}"""
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -180,10 +181,11 @@ def node4(state: State) -> State:
 
 def node5(state: State) -> State:
     input_data = state["input"][-1]
+    tone = state.get("tone", "")
     mode = state.get("mode", "")
     templates = _get_mode_templates(mode)
 
-    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. {templates["question"]}"""
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.Tone_instructions:{tone} {templates["question"]}"""
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -242,10 +244,11 @@ def node7(state: State) -> State:
 
 def node8(state: State) -> State:
     input_data = state["input"][-1]
+    tone = state.get("tone", "")
     mode = state.get("mode", "")
     templates = _get_mode_templates(mode)
 
-    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. {templates["offtopic"]}"""
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.Tone_instructions:{tone} {templates["offtopic"]}"""
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -269,12 +272,11 @@ def node8(state: State) -> State:
 
 def node9(state: State) -> State:
     input_data = state["input"][-1]
+    tone = state.get("tone", "")
     mode = state.get("mode", "")
     templates = _get_mode_templates(mode)
 
-    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'. {templates["nudge_user"]}"""
-    print("\n\n\n\n DOM node9 \n\n\n\n")
-    print(prompt)
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.Tone_instructions:{tone} {templates["nudge_user"]}"""
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -453,7 +455,6 @@ def start_interview():
         "output": [],
         "start_time": time.time(),
         "duration": 0,
-        # ✅ NEW: ground-truth data used for evaluation (NO summaries)
         "transcript": transcript,
         "code_history": []
     }
@@ -642,13 +643,15 @@ def respond():
     current_state = session_store[session_id]
     prev_summary = current_state.get("interaction_summary", "")
     mode = current_state.get("mode", "code_interview")
+    tone = current_state.get("tone", "")
 
     next_input = {
         "interview_question": current_state["input"][0]["interview_question"],
         "summary_of_past_response": prev_summary,
         "new_code_written": new_code_written,
         "user_input": user_input,
-    }
+        "tone": tone
+        }
 
     @stream_with_context
     def generate_stream():
