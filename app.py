@@ -1083,7 +1083,7 @@ def logout():
         httponly=True,
         secure=True,
         samesite="Strict",
-        domain="fypbackend-b5gchph9byc4b8gt.canadacentral-01.azurewebsites.net",
+        # domain="fypbackend-b5gchph9byc4b8gt.canadacentral-01.azurewebsites.net",
         path="/"
     )
     return response

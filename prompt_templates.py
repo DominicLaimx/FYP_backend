@@ -45,7 +45,16 @@ PROMPT_TEMPLATES = {
             Add small human touches to sound natural, but keep it professional.
             NO EMOJI
             Be concise. No more than 3 sentences.
-            """
+            """,
+            "nudge_explanation": """
+                Review the latest code block against the user's previous commentary to identify logical gaps or silent implementations. 
+                As a supportive interviewer, naturally pivot the conversation by asking a specific, open-ended question about an unexplained section of their logic. 
+                Keep the tone casual and professional—think of it as a collaborative whiteboard session.
+                Constraints:
+                No emojis.
+                Strict limit of 3 sentences.
+                Avoid generic "tell me more" questions; reference their actual code.
+        """
     },
 
     "code_interview": {
