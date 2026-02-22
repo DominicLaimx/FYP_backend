@@ -102,7 +102,7 @@ def _get_mode_templates(mode: str) -> Dict[str, str]:
 
 # __________________________ DEFINING NODES __________________________
 
-def node3(state: State) -> State:
+def orchestrator_agent(state: State) -> State:
     input_data = state["input"][-1]
     prompt = f"""
 You are an interviewer conducting a Software Engineering interview.
@@ -114,9 +114,10 @@ Classify the user's response into one of the following categories:
 2 → User asks question seeking guidance or clarification
 3 → User has given a response and you need to evaluate it
 4 → User is not talking about interview but needs a response
-5 -> Nudge user
+5 → Nudge user
+6 → Nudge explanation
 
-Output only the number (1, 2, 3, 4, 5) with no additional text.
+Output only the number (1, 2, 3, 4, 5, 6) with no additional text.
 """.strip()
 
     response = client.chat.completions.create(
@@ -137,20 +138,22 @@ def router(state: State) -> Dict:
     decision = state["decision"][-1]
 
     if decision == "1":
-        return {"next": "node_4"}
+        return {"next": "guidance_agent"}
     elif decision == "2":
-        return {"next": "node_5"}
+        return {"next": "question_agent"}
     elif decision == "3":
-        return {"next": "node_6"}
+        return {"next": "evaluation_agent"}
     elif decision == "4":
-        return {"next": "node_8"}
+        return {"next": "offtopic_agent"}
     elif decision == "5":
-        return {"next": "node_9"}
+        return {"next": "nudge_user_agent"}
+    elif decision == "6":
+        return {"next": "nudge_explanation_agent"}
     else:
-        return {"next": "node_7"}
+        return {"next": "end_state"}
 
 
-def node4(state: State) -> State:
+def guidance_agent(state: State) -> State:
     input_data = state["input"][-1]
     tone = state.get("tone", "")
     mode = state.get("mode", "")
@@ -179,7 +182,7 @@ def node4(state: State) -> State:
     return state
 
 
-def node5(state: State) -> State:
+def question_agent(state: State) -> State:
     input_data = state["input"][-1]
     tone = state.get("tone", "")
     mode = state.get("mode", "")
@@ -208,7 +211,7 @@ def node5(state: State) -> State:
     return state
 
 
-def node6(state: State) -> State:
+def evaluation_agent(state: State) -> State:
     input_data = state["input"][-1]
     mode = state.get("mode", "")
     templates = _get_mode_templates(mode)
@@ -236,13 +239,13 @@ def node6(state: State) -> State:
     return state
 
 
-def node7(state: State) -> State:
+def end_state(state: State) -> State:
     print("Interview is ending...")
     state["output"] = ["Goodbye!"]
     return state
 
 
-def node8(state: State) -> State:
+def offtopic_agent(state: State) -> State:
     input_data = state["input"][-1]
     tone = state.get("tone", "")
     mode = state.get("mode", "")
@@ -270,13 +273,40 @@ def node8(state: State) -> State:
     state["output"] = [response_text]
     return state
 
-def node9(state: State) -> State:
+def nudge_user_agent(state: State) -> State:
     input_data = state["input"][-1]
     tone = state.get("tone", "")
     mode = state.get("mode", "")
     templates = _get_mode_templates(mode)
 
     prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.Tone_instructions:{tone} {templates["nudge_user"]}"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        stream=True
+    )
+
+    response_text = ""
+    for chunk in response:
+        if not chunk.choices or not chunk.choices[0].delta:
+            continue
+        content_piece = chunk.choices[0].delta.content
+        if content_piece:
+            response_text += content_piece
+
+    state["output"] = [response_text]
+    return state
+
+def nudge_explanation_agent(state: State) -> State:
+    input_data = state["input"][-1]
+    tone = state.get("tone", "")
+    mode = state.get("mode", "")
+    templates = _get_mode_templates(mode)
+
+    prompt = f"""This is the summary of what the user has done and said in the interview thus far '{input_data}'.Tone_instructions:{tone} {templates["nudge_explanation"]}"""
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -377,31 +407,33 @@ def evaluate_response_partially(session_id: str):
 
 # __________________________________________________________ ADDING NODES TO WORKFLOW __________________________________________________________
 
-workflow.add_node("node_3", node3)
+workflow.add_node("orchestrator_agent", orchestrator_agent)
 workflow.add_node("router", router)
-workflow.add_node("node_4", node4)
-workflow.add_node("node_5", node5)
-workflow.add_node("node_6", node6)
-workflow.add_node("node_7", node7)
-workflow.add_node("node_8", node8)
-workflow.add_node("node_9", node9)
+workflow.add_node("guidance_agent", guidance_agent)
+workflow.add_node("question_agent", question_agent)
+workflow.add_node("evaluation_agent", evaluation_agent)
+workflow.add_node("end_state", end_state)
+workflow.add_node("offtopic_agent", offtopic_agent)
+workflow.add_node("nudge_user_agent", nudge_user_agent)
+workflow.add_node("nudge_explanation_agent", nudge_explanation_agent)
 
-workflow.add_edge("node_3", "router")
+workflow.add_edge("orchestrator_agent", "router")
 workflow.add_conditional_edges(
     "router",
     lambda state: state["next"],
     {
-        "node_4": "node_4",
-        "node_5": "node_5",
-        "node_6": "node_6",
-        "node_8": "node_8",
-        "node_9": "node_9",
-        "node_7": "node_7"
+        "guidance_agent": "guidance_agent",
+        "question_agent": "question_agent",
+        "evaluation_agent": "evaluation_agent",
+        "offtopic_agent": "offtopic_agent",
+        "nudge_user_agent": "nudge_user_agent",
+        "nudge_explanation_agent": "nudge_explanation_agent"
+        "end_state": "end_state"
     }
 )
 
-workflow.set_entry_point("node_3")
-workflow.set_finish_point("node_7")
+workflow.set_entry_point("orchestrator_agent")
+workflow.set_finish_point("end_state")
 
 app_graph = workflow.compile()
 
@@ -492,7 +524,7 @@ def nudge_explanation():
         "interview_question": current_state["input"][0]["interview_question"],
         "summary_of_past_response": prev_summary,
         "new_code_written": code,
-        "user_input": "nudge user", # Temp
+        "user_input": "nudge explanation",
     }
 
     @stream_with_context
