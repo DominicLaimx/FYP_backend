@@ -1052,6 +1052,11 @@ def register():
             resp = jsonify({"error": "All fields are required"})
             resp.status_code = 400
             return resp
+        
+        if not email.endswith("ntu.edu.sg"):
+            resp = jsonify({"error": "Email must be a valid NTU email (ntu.edu.sg)"})
+            resp.status_code = 400
+            return resp
 
         success = create_user(name, email, password)
 

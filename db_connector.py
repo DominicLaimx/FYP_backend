@@ -90,7 +90,7 @@ def get_all_questions():
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, question_text FROM questions")
+    cursor.execute("SELECT id, question_text FROM questions WHERE difficulty = 'Easy'")
     questions = cursor.fetchall()
     cursor.close()
     conn.close()
