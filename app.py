@@ -427,7 +427,7 @@ workflow.add_conditional_edges(
         "evaluation_agent": "evaluation_agent",
         "offtopic_agent": "offtopic_agent",
         "nudge_user_agent": "nudge_user_agent",
-        "nudge_explanation_agent": "nudge_explanation_agent"
+        "nudge_explanation_agent": "nudge_explanation_agent",
         "end_state": "end_state"
     }
 )
