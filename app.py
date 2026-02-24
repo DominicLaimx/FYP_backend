@@ -1603,8 +1603,6 @@ def azure_tts():
         </speak>'''
         
         response = requests.post(url, headers=headers, data=ssml, timeout=30)
-        print("DOM STATUS:", response.status_code)
-        print("DOM BODY:", response.text)
         
         if response.status_code == 200:
             return (
@@ -1623,71 +1621,6 @@ def azure_tts():
     except Exception as e:
         print(f"❌ TTS Error: {e}")
         return jsonify({"error": str(e)}), 500
-
-# @app.route("/azure_tts", methods=["POST", "OPTIONS"])
-# def azure_tts():
-#     AZURE_TTS_REGION = "eastus"
-
-#     if request.method == "OPTIONS":
-#         return jsonify({"message": "CORS Preflight OK"}), 204
-
-#     data = request.get_json() or {}
-#     text = data.get("text", "")
-#     if not text:
-#         resp = jsonify({"error": "No text provided"})
-#         resp.status_code = 400
-#         return resp
-
-#     print(f"🗣️ Azure TTS requested for sentence: {repr(text)}")
-
-#     try:
-#         speech_config = speechsdk.SpeechConfig(subscription=os.getenv("AZURE_SPEECH_TTS_KEY"), region=AZURE_TTS_REGION)
-#         speech_config.speech_synthesis_voice_name = "en-US-AvaMultilingualNeural"
-#         speech_config.set_speech_synthesis_output_format(
-#             speechsdk.SpeechSynthesisOutputFormat.Audio16Khz128KBitRateMonoMp3
-#         )
-
-#         synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
-
-#         voice_settings = {
-#             "voice": "en-US-AvaMultilingualNeural",
-#             "pace": "medium",
-#             "pause": "100ms",
-#             "tone": "newscast-formal",
-#             "pitch": "0%"
-#         }
-#         ssml_text = f"""
-# <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"
-#   xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">
-#   <voice name="{voice_settings['voice']}">
-#     <prosody rate="{voice_settings['pace']}" pitch="{voice_settings['pitch']}">
-#       <break time="{voice_settings['pause']}"/>
-#       <mstts:express-as style="{voice_settings['tone']}">
-#         {text}
-#       </mstts:express-as>
-#     </prosody>
-#   </voice>
-# </speak>
-# """.strip()
-
-#         result = synthesizer.speak_ssml_async(ssml_text).get()
-
-#         if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-#             cancellation_details = speechsdk.CancellationDetails(result)
-#             raise Exception(f"TTS failed: {cancellation_details.reason} - {cancellation_details.error_details}")
-
-#         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as out:
-#             out.write(result.audio_data)
-#             temp_path = out.name
-
-#         return send_file(temp_path, mimetype="audio/mpeg")
-
-#     except Exception as e:
-#         print(f"❌ Azure TTS Error: {e}")
-#         resp = jsonify({"error": "Internal server error during Azure TTS."})
-#         resp.status_code = 500
-#         return resp
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
