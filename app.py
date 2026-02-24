@@ -896,28 +896,57 @@ class DriveService:
         return fh.getvalue()
 
 
-
-
 @app.route('/save_recording', methods=['POST', 'OPTIONS'])
 def save_recording():
-    video_file = request.files['video']
-    TOKEN_PICKLE_B64 = os.getenv("GOOGLE_TOKEN_PICKLE")
-    drive = DriveService(token_pickle_b64=TOKEN_PICKLE_B64)
-    with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
-        video_bytes = video_file.read()
-        tmp.write(video_bytes)
-        temp_path = tmp.name
-
-        _ = drive.upload_video(temp_path, user_id="DOM")
-
+    if request.method == "OPTIONS":
+        return jsonify({"message": "CORS OK"}), 204
+    
     try:
-        results = analyze_interview_video(temp_path)
-        results['session_info'] = {'file_size_bytes': len(video_bytes)}
-        return jsonify(results)
+        video_file = request.files['video']
+        if not video_file:
+            return jsonify({"error": "No video file"}), 400
+        
+        TOKEN_PICKLE_B64 = os.getenv("GOOGLE_TOKEN_PICKLE")
+        drive = DriveService(token_pickle_b64=TOKEN_PICKLE_B64)
+        
+        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
+            for chunk in video_file.stream:  
+                tmp.write(chunk)
+            temp_path = tmp.name
+        
+        drive.upload_video(temp_path, user_id="DOM")
+        
+        try:
+            results = analyze_interview_video(temp_path)
+            results['session_info'] = {'file_size_bytes': os.path.getsize(temp_path)}
+            return jsonify(results)
+        finally:
+            os.unlink(temp_path)  
+            
     except Exception as e:
-        resp = jsonify({'error': str(e)})
-        resp.status_code = 500
-        return resp
+        print(f"❌ save_recording error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# @app.route('/save_recording', methods=['POST', 'OPTIONS'])
+# def save_recording():
+#     video_file = request.files['video']
+#     TOKEN_PICKLE_B64 = os.getenv("GOOGLE_TOKEN_PICKLE")
+#     drive = DriveService(token_pickle_b64=TOKEN_PICKLE_B64)
+#     with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
+#         video_bytes = video_file.read()
+#         tmp.write(video_bytes)
+#         temp_path = tmp.name
+
+#         _ = drive.upload_video(temp_path, user_id="DOM")
+
+#     try:
+#         results = analyze_interview_video(temp_path)
+#         results['session_info'] = {'file_size_bytes': len(video_bytes)}
+#         return jsonify(results)
+#     except Exception as e:
+#         resp = jsonify({'error': str(e)})
+#         resp.status_code = 500
+#         return resp
 
 
 @app.route('/questions/<question_type>', methods=['GET', 'OPTIONS'])
