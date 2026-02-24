@@ -1583,34 +1583,43 @@ def azure_tts():
         return jsonify({"error": "No text provided"}), 400
 
     try:
-        speech_config = speechsdk.SpeechConfig(
-            subscription=os.getenv("AZURE_SPEECH_TTS_KEY"), 
-            region="eastus"
-        )
-        speech_config.speech_synthesis_voice_name = "en-US-AvaMultilingualNeural"
-        speech_config.set_speech_synthesis_output_format(
-            speechsdk.SpeechSynthesisOutputFormat.Audio16Khz128KBitRateMonoMp3
-        )
-
-        synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
+        # Azure Speech REST API v3.2 (bypasses SDK crash)
+        url = "https://eastus.tts.speech.microsoft.com/cognitiveservices/v1"
         
-        # Single-line SSML
-        ssml = f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="en-US-AvaMultilingualNeural"><prosody rate="medium"><mstts:express-as style="newscast-formal">{text}</mstts:express-as></prosody></voice></speak>'
-        
-        result = synthesizer.speak_ssml_async(ssml).get()
-
-        if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-            raise Exception(f"TTS failed: {result.reason}")
-
-        # ✅ STREAM DIRECTLY - NO TEMP FILES
-        return result.audio_data, 200, {
-            'Content-Type': 'audio/mpeg',
-            'Content-Length': len(result.audio_data),
-            'Cache-Control': 'no-cache'
+        headers = {
+            "Ocp-Apim-Subscription-Key": os.getenv("AZURE_SPEECH_TTS_KEY"),
+            "Content-Type": "application/ssml+xml",
+            "X-Microsoft-OutputFormat": "audio-16khz-128kbitrate-mono-mp3",
+            "User-Agent": "your-app/1.0"
         }
-
+        
+        # Simple SSML (same voice/quality)
+        ssml = f'''<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'>
+            <voice name='en-US-AvaMultilingualNeural'>
+                <mstts:express-as style='newscast-formal'>
+                    {text}
+                </mstts:express-as>
+            </voice>
+        </speak>'''
+        
+        response = requests.post(url, headers=headers, data=ssml, timeout=30)
+        
+        if response.status_code == 200:
+            return (
+                response.content, 
+                200, 
+                {
+                    'Content-Type': 'audio/mpeg',
+                    'Content-Length': len(response.content),
+                    'Cache-Control': 'no-cache'
+                }
+            )
+        else:
+            print(f"TTS REST API failed: {response.status_code} - {response.text}")
+            return jsonify({"error": f"TTS failed: {response.status_code}"}), 500
+            
     except Exception as e:
-        print(f"❌ Azure TTS Error: {e}")
+        print(f"❌ TTS Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 # @app.route("/azure_tts", methods=["POST", "OPTIONS"])
