@@ -1585,7 +1585,7 @@ def azure_tts():
     try:
         # Azure Speech REST API v3.2 (bypasses SDK crash)
         url = "https://eastus.tts.speech.microsoft.com/cognitiveservices/v1"
-        
+        print("DOM", os.getenv("AZURE_SPEECH_TTS_KEY"))
         headers = {
             "Ocp-Apim-Subscription-Key": os.getenv("AZURE_SPEECH_TTS_KEY"),
             "Content-Type": "application/ssml+xml",
@@ -1603,6 +1603,8 @@ def azure_tts():
         </speak>'''
         
         response = requests.post(url, headers=headers, data=ssml, timeout=30)
+        print("DOM STATUS:", response.status_code)
+        print("DOM BODY:", response.text)
         
         if response.status_code == 200:
             return (
