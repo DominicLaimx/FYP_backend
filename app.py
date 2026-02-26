@@ -1327,7 +1327,7 @@ def final_evaluation():
         feedback_only = {
             "final_evaluation": final_result.get("final_evaluation", {}),
             "detailed_feedback": final_result.get("detailed_feedback", {}),
-            "scores": final_result.get("total_score", 0),
+            "total_score": final_result.get("total_score", 0),
             "overall_assessment": final_result.get("overall_assessment", ""),
             "recording_url": recording_url
         }
