@@ -31,6 +31,8 @@ class DetailedFeedback(BaseModel):
     problem_solving: str
     technical_competency: str
     code_implementation: str
+    examples_of_what_went_well: List[str]
+    areas_to_improve: List[str]
 
 class SOLOAssessment(BaseModel):
     level: int = Field(ge=0, le=4)
@@ -200,10 +202,14 @@ def evaluation_agent(state: dict) -> dict:
             - problem_solving (string)
             - technical_competency (string)
             - code_implementation (string)
+            - examples_of_what_went_well (List[string])
+            - areas_to_improve (List[string])
 
         IMPORTANT RULES:
         - Scores MUST be integers between 0 and 10.
         - Justifications must reference the candidate’s actual response or code.
+        - examples_of_what_went_well should list 2-3 specific strengths demonstrated.
+        - areas_to_improve should list 2-3 specific areas for development.
         - Do NOT calculate total_score.
         - Do NOT determine overall_assessment.
         - Do NOT include any extra fields.
@@ -259,7 +265,7 @@ def evaluation_agent(state: dict) -> dict:
     print("DOM after completions")
     print("DOM response", response)
     raw_text = response.choices[0].message.content.strip()
-    state["output"] = [raw_text]  # store raw text from GPT in 'output' for reference
+    state["output"] = [raw_text]  
 
     # Parse JSON
     try:
