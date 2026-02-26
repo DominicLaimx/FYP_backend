@@ -1273,7 +1273,7 @@ def partial_eval():
 
 @app.route("/final_evaluation", methods=["POST", "OPTIONS"])
 def final_evaluation():
-    print("DOM final eval", flush=True)
+    print("DOM final eval")
     print("Session_store", session_store)
     if request.method == "OPTIONS":
         return jsonify({"message": "CORS Preflight OK"}), 204
@@ -1319,7 +1319,9 @@ def final_evaluation():
     }
 
     eval_state = {"input": [final_input], "decision": [], "output": []}
+    print("DOM eval state before", eval_state)
     updated_eval_state = evaluation_agent(eval_state)
+    print("DOM after", updated_eval_state)
     final_result = updated_eval_state.get("evaluation_result", {})
 
     session_store[session_id]["final_evaluation"] = final_result
