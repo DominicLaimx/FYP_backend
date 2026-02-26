@@ -915,7 +915,11 @@ def save_recording():
             temp_path = tmp.name
         
         uploaded_file = drive.upload_video(temp_path, user_id="DOM")
-        video_file_id = uploaded_file['id']
+        print("DOM",uploaded_file)
+        video_file_id = (uploaded_file.get('id') or 
+                uploaded_file.id or 
+                uploaded_file['fileId'] or 
+                uploaded_file.file_id)
         
         try:
             results = analyze_interview_video(temp_path)
