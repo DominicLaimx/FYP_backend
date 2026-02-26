@@ -1182,7 +1182,8 @@ def partial_eval():
 
 @app.route("/final_evaluation", methods=["POST", "OPTIONS"])
 def final_evaluation():
-    print("DOM final eval")
+    print("DOM final eval", flush=True)
+    print("Session_store", session_store)
     if request.method == "OPTIONS":
         return jsonify({"message": "CORS Preflight OK"}), 204
 
