@@ -172,10 +172,10 @@ def evaluation_agent(state: dict) -> dict:
     This is an 'intermediate' grading each time the user responds.
     """
     input_data = state["input"][-1]
-
+    print("DOM start eval agent")
     solo_result = solo_agent(state)
     state["solo_result"] = solo_result["solo_result"]
-
+    print("DOM safter solo agent")
     prompt = f"""
         You are an AI evaluation agent for a coding interview.
         For each category, also include:
@@ -270,7 +270,8 @@ def evaluation_agent(state: dict) -> dict:
             {"role": "user", "content": prompt}
         ]
     )
-
+    print("DOM after completions")
+    print("DOM response", response)
     raw_text = response.choices[0].message.content.strip()
     state["output"] = [raw_text]  # store raw text from GPT in 'output' for reference
 
