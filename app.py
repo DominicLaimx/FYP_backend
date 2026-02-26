@@ -900,8 +900,7 @@ class DriveService:
 def save_recording():
     if request.method == "OPTIONS":
         return jsonify({"message": "CORS OK"}), 204
-    print("DOM SAVING recording")
-    print(request.files)
+
     try:
         video_file = request.files['video']
         if not video_file:
@@ -917,10 +916,7 @@ def save_recording():
         
         uploaded_file = drive.upload_video(temp_path, user_id="DOM")
         print("DOM",uploaded_file)
-        video_file_id = (uploaded_file.get('id') or 
-                uploaded_file.id or 
-                uploaded_file['fileId'] or 
-                uploaded_file.file_id)
+        video_file_id = uploaded_file.get('file_id') 
         
         try:
             results = analyze_interview_video(temp_path)
