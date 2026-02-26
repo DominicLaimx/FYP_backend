@@ -900,7 +900,8 @@ class DriveService:
 def save_recording():
     if request.method == "OPTIONS":
         return jsonify({"message": "CORS OK"}), 204
-    
+    print("DOM SAVING recording")
+    print(request.files)
     try:
         video_file = request.files['video']
         if not video_file:
