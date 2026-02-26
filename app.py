@@ -1007,13 +1007,13 @@ def save_recording():
         
         uploaded_file = drive.upload_video(temp_path, user_id="DOM")
         print("DOM",uploaded_file)
-        video_file_id = uploaded_file.get('file_id') 
+        recording_url = uploaded_file.get('recording_url') 
         
         try:
-            return jsonify({"file_id": video_file_id})
+            return jsonify({"recording_url": recording_url})
             results = analyze_interview_video(temp_path)
             results['session_info'] = {'file_size_bytes': os.path.getsize(temp_path)}
-            results['file_id'] = video_file_id
+            results['recording_url'] = recording_url
             return jsonify(results)
         finally:
             os.unlink(temp_path)  
@@ -1281,7 +1281,7 @@ def final_evaluation():
     session_id = data.get("session_id")
     student_id = data.get("student_id")
     question_id = data.get("question_id")
-    file_id = data.get("file_id","")
+    recording_url = data.get("recording_url","")
 
     print("Received session_id:", session_id)
     print("Current session_store keys:", session_store.keys())
@@ -1305,7 +1305,7 @@ def final_evaluation():
     final_input = {
         "student_id": student_id,
         "question_id": str(question_id),
-        "file_id": str(file_id),
+        "recording_url": str(recording_url),
         "interview_question": session_store[session_id]["input"][0]["interview_question"],
         "active_requirements": session_store[session_id]["input"][0]["interview_question"],
         "summary_of_past_response": session_store[session_id].get("interaction_summary", ""),
@@ -1329,7 +1329,7 @@ def final_evaluation():
             "detailed_feedback": final_result.get("detailed_feedback", {}),
             "scores": final_result.get("total_score", 0),
             "overall_assessment": final_result.get("overall_assessment", ""),
-            "file_id": file_id
+            "recording_url": recording_url
         }
 
         update_success = update_user_progress_by_email(
