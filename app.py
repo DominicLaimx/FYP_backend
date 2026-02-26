@@ -1320,8 +1320,11 @@ def final_evaluation():
 
     eval_state = {"input": [final_input], "decision": [], "output": []}
     print("DOM eval state before", eval_state)
+
+    print("before time:", time.time())
     updated_eval_state = evaluation_agent(eval_state)
     print("DOM after", updated_eval_state)
+    print("after time:", time.time())
     final_result = updated_eval_state.get("evaluation_result", {})
 
     session_store[session_id]["final_evaluation"] = final_result
