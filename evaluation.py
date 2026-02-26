@@ -1262,145 +1262,387 @@ def analyze_interview_video(video_path: str):
                             }
                         )
                 return feedback
-
             def analyze_video(self, video_path: str) -> _Dict:
+                import time
+                import numpy as np
+                from collections import deque
+                import cv2
+
+                start_time = time.time()
                 cap = cv2.VideoCapture(video_path)
+
                 reported_fps = cap.get(cv2.CAP_PROP_FPS)
-                fps = 30.0 if reported_fps > 60 or reported_fps <= 0 else reported_fps
+                fps = 30.0 if reported_fps <= 0 or reported_fps > 60 else reported_fps
+
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                video_duration = total_frames / fps if fps > 0 else 0.0
+
+                # --------------------------------------------------
+                # 🎯 HARD CAP: 300 ACTUAL PROCESSED FRAMES
+                # --------------------------------------------------
+                MAX_ANALYSIS_FRAMES = 300
+
+                if total_frames > MAX_ANALYSIS_FRAMES:
+                    frame_skip = max(1, total_frames // MAX_ANALYSIS_FRAMES)
+                else:
+                    frame_skip = 1
+
+                effective_fps = fps / frame_skip if frame_skip > 0 else fps
+
+                print(
+                    f"🎥 {video_duration:.1f}s video → "
+                    f"{MAX_ANALYSIS_FRAMES} sampled frames "
+                    f"(skip={frame_skip}, eff_fps={effective_fps:.2f})"
+                )
+
+                # --------------------------------------------------
+                # Initialize MediaPipe models
+                # --------------------------------------------------
                 face_mesh = self.mp_face_mesh.FaceMesh(
                     static_image_mode=False,
                     max_num_faces=1,
                     refine_landmarks=True,
-                    min_detection_confidence=0.3,
-                    min_tracking_confidence=0.3,
+                    min_detection_confidence=0.6,
+                    min_tracking_confidence=0.6,
                 )
+
                 hands = self.mp_hands.Hands(
                     static_image_mode=False,
-                    max_num_hands=2,
-                    min_detection_confidence=0.3,
-                    min_tracking_confidence=0.3,
+                    max_num_hands=1,
+                    min_detection_confidence=0.6,
+                    min_tracking_confidence=0.6,
                 )
-                gaze_buffer = deque(maxlen=int(fps * 30))
-                calibration_buffer = deque(maxlen=int(fps * 10))
+
+                # --------------------------------------------------
+                # Robust buffer sizing (statistically safe)
+                # --------------------------------------------------
+                calibration_frames = max(60, int(effective_fps * 6))
+                gaze_window_frames = max(120, int(effective_fps * 15))
+                hand_motion_frames = max(10, int(effective_fps * 1))
+                touch_window_frames = max(60, int(effective_fps * 20))
+
+                calibration_buffer = deque(maxlen=calibration_frames)
+                gaze_buffer = deque(maxlen=gaze_window_frames)
+                hand_motion_buffer = deque(maxlen=hand_motion_frames)
+                touch_buffer = deque(maxlen=touch_window_frames)
+
                 calibrated = False
-                gaze_mean = 0
-                gaze_std = 1
+                gaze_mean = 0.0
+                gaze_std = 1.0
+
                 prev_gaze = None
-                last_eye_dart = 0
+                last_eye_dart = 0.0
                 looking_away_start = None
-                hand_motion_buffer = deque(maxlen=int(fps * 1))
-                touch_buffer = deque(maxlen=int(fps * 30))
+                self.last_hand_pos = None  # Reset per video (safety)
+
                 events = []
                 frame_count = 0
-                while cap.isOpened():
+                processed_frames = 0
+
+                # --------------------------------------------------
+                # 🔥 FAST UNIFORM SAMPLING LOOP
+                # --------------------------------------------------
+                while cap.isOpened() and processed_frames < MAX_ANALYSIS_FRAMES:
+
                     ret, frame = cap.read()
                     if not ret:
                         break
+
                     frame_count += 1
-                    if (frame_count - 1) % 10 != 0:
+
+                    if (frame_count - 1) % frame_skip != 0:
                         continue
-                    frame = cv2.resize(frame, (640, 480))
-                    timestamp = frame_count / fps
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                    processed_frames += 1
+                    timestamp = (frame_count - 1) / fps
+
+                    # Fast resize
+                    frame_resized = cv2.resize(frame, (640, 360))
+                    frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
+
+                    # --------------------------------------------------
+                    # Face detection first (speed optimization)
+                    # --------------------------------------------------
                     face_results = face_mesh.process(frame_rgb)
-                    hand_results = hands.process(frame_rgb)
-                    if face_results.multi_face_landmarks:
-                        face_landmarks = face_results.multi_face_landmarks[0]
-                        raw_gaze = self._estimate_gaze(face_landmarks)
-                        smooth_gaze = self.kalman_filter(prev_gaze, raw_gaze)
-                        prev_gaze = smooth_gaze
-                        calibration_buffer.append(smooth_gaze)
-                        if len(calibration_buffer) == calibration_buffer.maxlen:
-                            gaze_mean = np.mean(calibration_buffer)
-                            gaze_std = np.std(calibration_buffer) + 0.01
-                            calibrated = True
-                        gaze_buffer.append(smooth_gaze)
-                        if calibrated and len(gaze_buffer) == gaze_buffer.maxlen:
-                            darting_threshold = gaze_mean + 3 * gaze_std
-                            away_threshold = gaze_mean + 2.5 * gaze_std
-                            gaze_variance = np.var(list(gaze_buffer))
-                            if gaze_variance > darting_threshold:
-                                if timestamp - last_eye_dart > 5:
-                                    events.append(
-                                        {
-                                            "type": "eye_darting",
-                                            "start": timestamp,
-                                            "end": timestamp + 2,
-                                            "intensity": float(gaze_variance),
-                                            "threshold": float(darting_threshold),
-                                        }
-                                    )
-                                    last_eye_dart = timestamp
-                            if abs(smooth_gaze - gaze_mean) > away_threshold:
-                                if looking_away_start is None:
-                                    looking_away_start = timestamp
-                                elif timestamp - looking_away_start > 2:
-                                    direction = "right" if smooth_gaze > gaze_mean else "left"
-                                    events.append(
-                                        {
-                                            "type": "prolonged_look_away",
-                                            "start": looking_away_start,
-                                            "end": timestamp,
-                                            "direction": direction,
-                                            "intensity": float(abs(smooth_gaze - gaze_mean)),
-                                            "threshold": float(away_threshold),
-                                        }
-                                    )
-                                    looking_away_start = None
-                            else:
+                    if not face_results.multi_face_landmarks:
+                        continue
+
+                    face_landmarks = face_results.multi_face_landmarks[0]
+
+                    # --------------------------------------------------
+                    # GAZE PROCESSING
+                    # --------------------------------------------------
+                    raw_gaze = self._estimate_gaze(face_landmarks)
+                    smooth_gaze = self.kalman_filter(prev_gaze, raw_gaze)
+                    prev_gaze = smooth_gaze
+
+                    calibration_buffer.append(smooth_gaze)
+
+                    if not calibrated and len(calibration_buffer) == calibration_buffer.maxlen:
+                        gaze_mean = float(np.mean(calibration_buffer))
+                        gaze_std = float(np.std(calibration_buffer) + 1e-3)
+                        calibrated = True
+
+                    gaze_buffer.append(smooth_gaze)
+
+                    if calibrated and len(gaze_buffer) == gaze_buffer.maxlen:
+
+                        gaze_variance = float(np.var(gaze_buffer))
+                        variance_threshold = (3 * gaze_std) ** 2
+
+                        # Eye dart detection
+                        if gaze_variance > variance_threshold and timestamp - last_eye_dart > 5:
+                            events.append({
+                                "type": "eye_darting",
+                                "start": timestamp,
+                                "end": timestamp + 2,
+                                "intensity": gaze_variance,
+                                "threshold": variance_threshold
+                            })
+                            last_eye_dart = timestamp
+
+                        # Look-away detection (Z-score based)
+                        z_score = abs(smooth_gaze - gaze_mean) / gaze_std
+
+                        if z_score > 2.5:
+                            if looking_away_start is None:
+                                looking_away_start = timestamp
+                            elif timestamp - looking_away_start > 2:
+                                direction = "right" if smooth_gaze > gaze_mean else "left"
+                                events.append({
+                                    "type": "prolonged_look_away",
+                                    "start": looking_away_start,
+                                    "end": timestamp,
+                                    "direction": direction,
+                                    "intensity": float(z_score),
+                                    "threshold": 2.5
+                                })
                                 looking_away_start = None
+                        else:
+                            looking_away_start = None
+
+                    # --------------------------------------------------
+                    # HAND PROCESSING
+                    # --------------------------------------------------
+                    hand_results = hands.process(frame_rgb)
+
                     if hand_results.multi_hand_landmarks:
+
+                        # Precompute face width once
+                        dx = face_landmarks.landmark[10].x - face_landmarks.landmark[152].x
+                        dy = face_landmarks.landmark[10].y - face_landmarks.landmark[152].y
+                        face_width = (dx * dx + dy * dy) ** 0.5
+                        touch_threshold = 0.08 * face_width
+
                         for hand_landmarks in hand_results.multi_hand_landmarks:
-                            wrist_pos = hand_landmarks.landmark[0]
-                            current_pos = np.array([wrist_pos.x, wrist_pos.y, wrist_pos.z])
+
+                            wrist = hand_landmarks.landmark[0]
+                            current_pos = np.array([wrist.x, wrist.y, wrist.z])
+
+                            # Motion detection
                             if self.last_hand_pos is not None:
                                 motion = float(np.linalg.norm(current_pos - self.last_hand_pos))
                                 hand_motion_buffer.append(motion)
+
                                 if len(hand_motion_buffer) == hand_motion_buffer.maxlen:
                                     avg_motion = float(np.mean(hand_motion_buffer))
                                     if avg_motion > 0.02:
-                                        events.append(
-                                            {
-                                                "type": "excessive_hand_movement",
-                                                "start": timestamp - 1,
-                                                "end": timestamp,
-                                                "intensity": avg_motion,
-                                            }
-                                        )
+                                        events.append({
+                                            "type": "excessive_hand_movement",
+                                            "start": timestamp - 1,
+                                            "end": timestamp,
+                                            "intensity": avg_motion
+                                        })
+
                             self.last_hand_pos = current_pos
-                            if face_results.multi_face_landmarks:
-                                face_landmarks = face_results.multi_face_landmarks[0]
-                                face_width = np.linalg.norm(
-                                    [
-                                        face_landmarks.landmark[10].x - face_landmarks.landmark[152].x,
-                                        face_landmarks.landmark[10].y - face_landmarks.landmark[152].y,
-                                    ]
-                                )
-                                touch_threshold = 0.08 * face_width
-                                if self._is_touching_face(hand_landmarks, face_landmarks, touch_threshold):
-                                    touch_buffer.append(timestamp)
-                                    if len(touch_buffer) > 3:
-                                        recent_touches = [t for t in touch_buffer if timestamp - t < 60]
-                                        if len(recent_touches) >= 3:
-                                            events.append(
-                                                {
-                                                    "type": "frequent_self_touching",
-                                                    "start": recent_touches[0],
-                                                    "end": timestamp,
-                                                    "count": len(recent_touches),
-                                                }
-                                            )
-                                            touch_buffer.clear()
+
+                            # Sliding window touch detection (O(1))
+                            if self._is_touching_face(hand_landmarks, face_landmarks, touch_threshold):
+                                touch_buffer.append(timestamp)
+
+                            # Remove old entries beyond 60s window
+                            while touch_buffer and timestamp - touch_buffer[0] > 60:
+                                touch_buffer.popleft()
+
+                            if len(touch_buffer) >= 3:
+                                events.append({
+                                    "type": "frequent_self_touching",
+                                    "start": touch_buffer[0],
+                                    "end": timestamp,
+                                    "count": len(touch_buffer)
+                                })
+                                touch_buffer.clear()
+
+                # --------------------------------------------------
+                # Cleanup
+                # --------------------------------------------------
                 cap.release()
+                face_mesh.close()
+                hands.close()
+
+                # --------------------------------------------------
+                # Post-processing
+                # --------------------------------------------------
                 events = self._merge_similar_events(events)
                 events = self._filter_weak_events(events, min_duration=2.0)
                 feedback = self._generate_coaching_feedback(events)
-                total_duration = frame_count / fps if fps > 0 else 0.0
+
+                analysis_time = time.time() - start_time
+
+                print(
+                    f"✅ Analysis complete: {analysis_time:.1f}s "
+                    f"for {video_duration:.1f}s video "
+                    f"({processed_frames} frames)"
+                )
+
                 return {
                     "detected_habits": events,
                     "coaching_feedback": feedback,
-                    "summary_stats": self._generate_statistics(events, total_duration),
+                    "summary_stats": self._generate_statistics(events, video_duration),
                 }
+
+            # def analyze_video(self, video_path: str) -> _Dict:
+            #     cap = cv2.VideoCapture(video_path)
+            #     reported_fps = cap.get(cv2.CAP_PROP_FPS)
+            #     fps = 30.0 if reported_fps > 60 or reported_fps <= 0 else reported_fps
+            #     face_mesh = self.mp_face_mesh.FaceMesh(
+            #         static_image_mode=False,
+            #         max_num_faces=1,
+            #         refine_landmarks=True,
+            #         min_detection_confidence=0.5,
+            #         min_tracking_confidence=0.5,
+            #     )
+            #     hands = self.mp_hands.Hands(
+            #         static_image_mode=False,
+            #         max_num_hands=1,
+            #         min_detection_confidence=0.5,
+            #         min_tracking_confidence=0.5,
+            #     )
+            #     gaze_buffer = deque(maxlen=int(fps * 30))
+            #     calibration_buffer = deque(maxlen=int(fps * 10))
+            #     calibrated = False
+            #     gaze_mean = 0
+            #     gaze_std = 1
+            #     prev_gaze = None
+            #     last_eye_dart = 0
+            #     looking_away_start = None
+            #     hand_motion_buffer = deque(maxlen=int(fps * 1))
+            #     touch_buffer = deque(maxlen=int(fps * 30))
+            #     events = []
+            #     frame_count = 0
+            #     while cap.isOpened():
+            #         ret, frame = cap.read()
+            #         if not ret:
+            #             break
+            #         frame_count += 1
+            #         if (frame_count - 1) % 10 != 0:
+            #             continue
+            #         frame = cv2.resize(frame, (640, 360))
+            #         timestamp = frame_count / fps
+            #         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #         face_results = face_mesh.process(frame_rgb)
+            #         if not face_results.multi_face_landmarks:
+            #             continue
+                        
+            #         hand_results = hands.process(frame_rgb)
+
+            #         if face_results.multi_face_landmarks:
+            #             face_landmarks = face_results.multi_face_landmarks[0]
+            #             raw_gaze = self._estimate_gaze(face_landmarks)
+            #             smooth_gaze = self.kalman_filter(prev_gaze, raw_gaze)
+            #             prev_gaze = smooth_gaze
+            #             calibration_buffer.append(smooth_gaze)
+            #             if len(calibration_buffer) == calibration_buffer.maxlen:
+            #                 gaze_mean = np.mean(calibration_buffer)
+            #                 gaze_std = np.std(calibration_buffer) + 0.01
+            #                 calibrated = True
+            #             gaze_buffer.append(smooth_gaze)
+            #             if calibrated and len(gaze_buffer) == gaze_buffer.maxlen:
+            #                 darting_threshold = gaze_mean + 3 * gaze_std
+            #                 away_threshold = gaze_mean + 2.5 * gaze_std
+            #                 gaze_variance = np.var(list(gaze_buffer))
+            #                 if gaze_variance > darting_threshold:
+            #                     if timestamp - last_eye_dart > 5:
+            #                         events.append(
+            #                             {
+            #                                 "type": "eye_darting",
+            #                                 "start": timestamp,
+            #                                 "end": timestamp + 2,
+            #                                 "intensity": float(gaze_variance),
+            #                                 "threshold": float(darting_threshold),
+            #                             }
+            #                         )
+            #                         last_eye_dart = timestamp
+            #                 if abs(smooth_gaze - gaze_mean) > away_threshold:
+            #                     if looking_away_start is None:
+            #                         looking_away_start = timestamp
+            #                     elif timestamp - looking_away_start > 2:
+            #                         direction = "right" if smooth_gaze > gaze_mean else "left"
+            #                         events.append(
+            #                             {
+            #                                 "type": "prolonged_look_away",
+            #                                 "start": looking_away_start,
+            #                                 "end": timestamp,
+            #                                 "direction": direction,
+            #                                 "intensity": float(abs(smooth_gaze - gaze_mean)),
+            #                                 "threshold": float(away_threshold),
+            #                             }
+            #                         )
+            #                         looking_away_start = None
+            #                 else:
+            #                     looking_away_start = None
+            #         if hand_results.multi_hand_landmarks:
+            #             for hand_landmarks in hand_results.multi_hand_landmarks:
+            #                 wrist_pos = hand_landmarks.landmark[0]
+            #                 current_pos = np.array([wrist_pos.x, wrist_pos.y, wrist_pos.z])
+            #                 if self.last_hand_pos is not None:
+            #                     motion = float(np.linalg.norm(current_pos - self.last_hand_pos))
+            #                     hand_motion_buffer.append(motion)
+            #                     if len(hand_motion_buffer) == hand_motion_buffer.maxlen:
+            #                         avg_motion = float(np.mean(hand_motion_buffer))
+            #                         if avg_motion > 0.02:
+            #                             events.append(
+            #                                 {
+            #                                     "type": "excessive_hand_movement",
+            #                                     "start": timestamp - 1,
+            #                                     "end": timestamp,
+            #                                     "intensity": avg_motion,
+            #                                 }
+            #                             )
+            #                 self.last_hand_pos = current_pos
+            #                 if face_results.multi_face_landmarks:
+            #                     face_landmarks = face_results.multi_face_landmarks[0]
+            #                     face_width = np.linalg.norm(
+            #                         [
+            #                             face_landmarks.landmark[10].x - face_landmarks.landmark[152].x,
+            #                             face_landmarks.landmark[10].y - face_landmarks.landmark[152].y,
+            #                         ]
+            #                     )
+            #                     touch_threshold = 0.08 * face_width
+            #                     if self._is_touching_face(hand_landmarks, face_landmarks, touch_threshold):
+            #                         touch_buffer.append(timestamp)
+            #                         if len(touch_buffer) > 3:
+            #                             recent_touches = [t for t in touch_buffer if timestamp - t < 60]
+            #                             if len(recent_touches) >= 3:
+            #                                 events.append(
+            #                                     {
+            #                                         "type": "frequent_self_touching",
+            #                                         "start": recent_touches[0],
+            #                                         "end": timestamp,
+            #                                         "count": len(recent_touches),
+            #                                     }
+            #                                 )
+            #                                 touch_buffer.clear()
+            #     cap.release()
+            #     events = self._merge_similar_events(events)
+            #     events = self._filter_weak_events(events, min_duration=2.0)
+            #     feedback = self._generate_coaching_feedback(events)
+            #     total_duration = frame_count / fps if fps > 0 else 0.0
+            #     return {
+            #         "detected_habits": events,
+            #         "coaching_feedback": feedback,
+            #         "summary_stats": self._generate_statistics(events, total_duration),
+            #     }
 
         detector = NervousHabitDetector()
         return detector.analyze_video(video_path)
