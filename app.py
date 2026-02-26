@@ -1007,7 +1007,7 @@ def save_recording():
         
         uploaded_file = drive.upload_video(temp_path, user_id="DOM")
         print("DOM",uploaded_file)
-        recording_url = uploaded_file.get('recording_url') 
+        recording_url = uploaded_file.get('public_url') 
         
         try:
             return jsonify({"recording_url": recording_url})
