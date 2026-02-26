@@ -914,11 +914,13 @@ def save_recording():
                 tmp.write(chunk)
             temp_path = tmp.name
         
-        drive.upload_video(temp_path, user_id="DOM")
+        uploaded_file = drive.upload_video(temp_path, user_id="DOM")
+        video_file_id = uploaded_file['id']
         
         try:
             results = analyze_interview_video(temp_path)
             results['session_info'] = {'file_size_bytes': os.path.getsize(temp_path)}
+            results['file_id'] = video_file_id
             return jsonify(results)
         finally:
             os.unlink(temp_path)  
@@ -1185,6 +1187,7 @@ def final_evaluation():
     session_id = data.get("session_id")
     student_id = data.get("student_id")
     question_id = data.get("question_id")
+    file_id = data.get("file_id","")
 
     print("Received session_id:", session_id)
     print("Current session_store keys:", session_store.keys())
@@ -1208,6 +1211,7 @@ def final_evaluation():
     final_input = {
         "student_id": student_id,
         "question_id": str(question_id),
+        "file_id": str(file_id),
         "interview_question": session_store[session_id]["input"][0]["interview_question"],
         "active_requirements": session_store[session_id]["input"][0]["interview_question"],
         "summary_of_past_response": session_store[session_id].get("interaction_summary", ""),
