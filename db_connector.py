@@ -307,7 +307,7 @@ def get_user_feedback_history(user_id: str):
                     "final_evaluation": entry.get("final_evaluation", {}),
                     "detailed_feedback": entry.get("detailed_feedback", {}),
 
-                    "total_score_0_100": entry.get("total_score_0_100"),
+                    "total_score": entry.get("total_score"),
 
                     "overall_assessment": entry.get("overall_assessment"),
 
