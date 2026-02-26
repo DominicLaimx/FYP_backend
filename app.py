@@ -657,6 +657,89 @@ def nudge_user():
 
     return Response(generate_stream(), mimetype='text/plain')
 
+# @app.route('/respond', methods=['POST', 'OPTIONS'])
+# def respond():
+#     if request.method == "OPTIONS":
+#         return jsonify({"message": "CORS Preflight OK"}), 204
+
+#     data = request.json or {}
+#     session_id = data.get("session_id")
+#     if not session_id or session_id not in session_store:
+#         resp = jsonify({"error": "Invalid session_id"})
+#         resp.status_code = 400
+#         return resp
+
+#     user_input = data.get("user_input", "") or ""
+#     new_code_written = data.get("new_code_written", "") or ""
+
+#     current_state = session_store[session_id]
+#     prev_summary = current_state.get("interaction_summary", "")
+#     mode = current_state.get("mode", "code_interview")
+#     tone = current_state.get("tone", "")
+
+#     next_input = {
+#         "interview_question": current_state["input"][0]["interview_question"],
+#         "summary_of_past_response": prev_summary,
+#         "new_code_written": new_code_written,
+#         "user_input": user_input,
+#         "tone": tone
+#         }
+
+#     @stream_with_context
+#     def generate_stream():
+#         # Run interviewer response
+#         next_state = app_graph.invoke({
+#             "input": [next_input],
+#             "decision": [],
+#             "output": [],
+#             "mode": mode
+#         })
+
+#         full_response = next_state.get("output", ["No response"])[-1] or ""
+
+#         # Stream to frontend (word-by-word)
+#         sentence_buffer = ""
+#         for word in full_response.split():
+#             sentence_buffer += word + " "
+#             yield word + " "
+#             time.sleep(0.01)
+
+#             if re.search(r'[.!?]["\']?\s*$', sentence_buffer):
+#                 yield f"[TTS_START]{sentence_buffer.strip()}[TTS_END]"
+#                 sentence_buffer = ""
+
+#         if sentence_buffer.strip():
+#             yield f"[TTS_START]{sentence_buffer.strip()}[TTS_END]"
+
+#         # ✅ Update ground-truth transcript + code history (for evaluation)
+#         if user_input.strip():
+#             current_state.setdefault("transcript", []).append({"role": "user", "content": user_input.strip()})
+#         if full_response.strip():
+#             current_state.setdefault("transcript", []).append({"role": "assistant", "content": full_response.strip()})
+
+#         # Track code snapshots (only if changed & non-empty)
+#         if new_code_written.strip():
+#             history = current_state.setdefault("code_history", [])
+#             if not history or history[-1] != new_code_written:
+#                 history.append(new_code_written)
+
+#         # Summary ONLY for chat continuity
+#         new_summary = summarize_conversation(session_id, user_input, new_code_written)
+
+#         # Update session store
+#         session_store[session_id] = {
+#             **current_state,
+#             "input": [next_input],
+#             "decision": next_state.get("decision", []),
+#             "output": [full_response],
+#             "mode": mode,
+#             "interaction_summary": new_summary,
+#             "start_time": current_state.get("start_time"),
+#             "duration": current_state.get("duration", 0)
+#         }
+
+#     return Response(generate_stream(), mimetype='text/plain')
+
 @app.route('/respond', methods=['POST', 'OPTIONS'])
 def respond():
     if request.method == "OPTIONS":
@@ -664,6 +747,7 @@ def respond():
 
     data = request.json or {}
     session_id = data.get("session_id")
+
     if not session_id or session_id not in session_store:
         resp = jsonify({"error": "Invalid session_id"})
         resp.status_code = 400
@@ -683,22 +767,56 @@ def respond():
         "new_code_written": new_code_written,
         "user_input": user_input,
         "tone": tone
-        }
+    }
 
-    @stream_with_context
-    def generate_stream():
-        # Run interviewer response
-        next_state = app_graph.invoke({
-            "input": [next_input],
-            "decision": [],
-            "output": [],
-            "mode": mode
+    # ---- 1️⃣ Run model BEFORE streaming ----
+    next_state = app_graph.invoke({
+        "input": [next_input],
+        "decision": [],
+        "output": [],
+        "mode": mode
+    })
+
+    full_response = next_state.get("output", ["No response"])[-1] or ""
+
+    # ---- 2️⃣ Update transcript immediately ----
+    if user_input.strip():
+        current_state.setdefault("transcript", []).append({
+            "role": "user",
+            "content": user_input.strip()
         })
 
-        full_response = next_state.get("output", ["No response"])[-1] or ""
+    if full_response.strip():
+        current_state.setdefault("transcript", []).append({
+            "role": "assistant",
+            "content": full_response.strip()
+        })
 
-        # Stream to frontend (word-by-word)
+    # ---- 3️⃣ Track code history ----
+    if new_code_written.strip():
+        history = current_state.setdefault("code_history", [])
+        if not history or history[-1] != new_code_written:
+            history.append(new_code_written)
+
+    # ---- 4️⃣ Update summary ----
+    new_summary = summarize_conversation(session_id, user_input, new_code_written)
+
+    # ---- 5️⃣ Mutate existing state (DO NOT reassign) ----
+    current_state.update({
+        "input": [next_input],
+        "decision": next_state.get("decision", []),
+        "output": [full_response],
+        "mode": mode,
+        "interaction_summary": new_summary,
+        "start_time": current_state.get("start_time"),
+        "duration": current_state.get("duration", 0)
+    })
+
+    # ---- 6️⃣ Streaming function (no state logic inside) ----
+    @stream_with_context
+    def generate_stream():
         sentence_buffer = ""
+
         for word in full_response.split():
             sentence_buffer += word + " "
             yield word + " "
@@ -710,33 +828,6 @@ def respond():
 
         if sentence_buffer.strip():
             yield f"[TTS_START]{sentence_buffer.strip()}[TTS_END]"
-
-        # ✅ Update ground-truth transcript + code history (for evaluation)
-        if user_input.strip():
-            current_state.setdefault("transcript", []).append({"role": "user", "content": user_input.strip()})
-        if full_response.strip():
-            current_state.setdefault("transcript", []).append({"role": "assistant", "content": full_response.strip()})
-
-        # Track code snapshots (only if changed & non-empty)
-        if new_code_written.strip():
-            history = current_state.setdefault("code_history", [])
-            if not history or history[-1] != new_code_written:
-                history.append(new_code_written)
-
-        # Summary ONLY for chat continuity
-        new_summary = summarize_conversation(session_id, user_input, new_code_written)
-
-        # Update session store
-        session_store[session_id] = {
-            **current_state,
-            "input": [next_input],
-            "decision": next_state.get("decision", []),
-            "output": [full_response],
-            "mode": mode,
-            "interaction_summary": new_summary,
-            "start_time": current_state.get("start_time"),
-            "duration": current_state.get("duration", 0)
-        }
 
     return Response(generate_stream(), mimetype='text/plain')
 
