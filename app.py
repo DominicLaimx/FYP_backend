@@ -919,6 +919,7 @@ def save_recording():
         video_file_id = uploaded_file.get('file_id') 
         
         try:
+            return jsonify({"file_id": video_file_id})
             results = analyze_interview_video(temp_path)
             results['session_info'] = {'file_size_bytes': os.path.getsize(temp_path)}
             results['file_id'] = video_file_id
