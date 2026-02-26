@@ -1273,8 +1273,7 @@ def partial_eval():
 
 @app.route("/final_evaluation", methods=["POST", "OPTIONS"])
 def final_evaluation():
-    print("DOM final eval")
-    print("Session_store", session_store)
+
     if request.method == "OPTIONS":
         return jsonify({"message": "CORS Preflight OK"}), 204
 
@@ -1319,12 +1318,7 @@ def final_evaluation():
     }
 
     eval_state = {"input": [final_input], "decision": [], "output": []}
-    print("DOM eval state before", eval_state)
-
-    print("before time:", time.time())
     updated_eval_state = evaluation_agent(eval_state)
-    print("DOM after", updated_eval_state)
-    print("after time:", time.time())
     final_result = updated_eval_state.get("evaluation_result", {})
 
     session_store[session_id]["final_evaluation"] = final_result
@@ -1333,8 +1327,9 @@ def final_evaluation():
         feedback_only = {
             "final_evaluation": final_result.get("final_evaluation", {}),
             "detailed_feedback": final_result.get("detailed_feedback", {}),
-            "scores": final_result.get("total_score_0_100", 0),
-            "overall_assessment": final_result.get("overall_assessment", "")
+            "scores": final_result.get("total_score", 0),
+            "overall_assessment": final_result.get("overall_assessment", ""),
+            "file_id": file_id
         }
 
         update_success = update_user_progress_by_email(

@@ -54,20 +54,6 @@ class PartialEvaluation(BaseModel):
     technical_competency: PartialCategoryFeedback
     code_implementation: PartialCategoryFeedback
 
-# class PartialCategoryFeedback(BaseModel):
-#     improvement: str
-#     regression: str
-#     missing: str
-#     evidence: List[str]
-
-# class PartialEvaluation(BaseModel):
-#     student_id: str
-#     question_id: str
-#     communication: PartialCategoryFeedback
-#     problem_solving: PartialCategoryFeedback
-#     technical_competency: PartialCategoryFeedback
-#     code_implementation: PartialCategoryFeedback
-
 def overall_assessment_from_score(score: int) -> str:
     if score >= 34:
         return "Strong Hire"
@@ -234,10 +220,10 @@ def evaluation_agent(state: dict) -> dict:
 
         COMMUNICATION (0–10):
         - 9–10: Clear, structured thinking, explains trade-offs, asks strong questions
-        - 7–8: Articulate and logical explanations
-        - 5–6: Understandable but unclear in parts
-        - 3–4: Difficult to follow
-        - 0–2: Minimal or confusing communication
+        - 7–8: Articulate and logical explanations with clear reasoning
+        - 5–6: Understandable but unclear in parts; some reasoning explained
+        - 3–4: Difficult to follow; minimal verbal reasoning or mostly code with little explanation
+        - 0–2: Minimal or confusing communication (single words/phrases, silence, or completely incoherent)
 
         PROBLEM SOLVING (0–10):
         - 9–10: Optimal approach, handles edge cases
