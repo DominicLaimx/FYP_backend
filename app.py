@@ -142,7 +142,7 @@ def router(state: State) -> Dict:
     elif decision == "2":
         return {"next": "question_agent"}
     elif decision == "3":
-        return {"next": "evaluation_agent"}
+        return {"next": "eval_agent"}
     elif decision == "4":
         return {"next": "offtopic_agent"}
     elif decision == "5":
@@ -211,7 +211,7 @@ def question_agent(state: State) -> State:
     return state
 
 
-def evaluation_agent(state: State) -> State:
+def eval_agent(state: State) -> State:
     input_data = state["input"][-1]
     mode = state.get("mode", "")
     templates = _get_mode_templates(mode)
@@ -411,7 +411,7 @@ workflow.add_node("orchestrator_agent", orchestrator_agent)
 workflow.add_node("router", router)
 workflow.add_node("guidance_agent", guidance_agent)
 workflow.add_node("question_agent", question_agent)
-workflow.add_node("evaluation_agent", evaluation_agent)
+workflow.add_node("eval_agent", eval_agent)
 workflow.add_node("end_state", end_state)
 workflow.add_node("offtopic_agent", offtopic_agent)
 workflow.add_node("nudge_user_agent", nudge_user_agent)
@@ -424,7 +424,7 @@ workflow.add_conditional_edges(
     {
         "guidance_agent": "guidance_agent",
         "question_agent": "question_agent",
-        "evaluation_agent": "evaluation_agent",
+        "eval_agent": "eval_agent",
         "offtopic_agent": "offtopic_agent",
         "nudge_user_agent": "nudge_user_agent",
         "nudge_explanation_agent": "nudge_explanation_agent",
