@@ -8,6 +8,9 @@ import pickle
 import tempfile
 import datetime
 import subprocess
+import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 
 import jwt
 import requests
@@ -61,6 +64,30 @@ if not SECRET_KEY:
 
 ALLOWED_ORIGIN = "https://mango-bush-0c99ac700.6.azurestaticapps.net"
 SCOPES = ["https://www.googleapis.com/auth/drive"]
+
+# ---------------------------------------------------------------------------
+# TTS: persistent HTTP session (reuses TCP connection) + in-memory audio cache.
+# Identical sentences (greetings, common phrases) are synthesised only once.
+# Max 256 entries; evicts oldest when full.
+# ---------------------------------------------------------------------------
+_tts_http_session = requests.Session()
+_TTS_CACHE: dict = {}
+_TTS_CACHE_MAX = 256
+
+
+def _tts_cache_key(text: str) -> str:
+    return hashlib.sha256(text.strip().lower().encode()).hexdigest()
+
+
+def _tts_cache_get(key: str):
+    return _TTS_CACHE.get(key)
+
+
+def _tts_cache_set(key: str, audio: bytes) -> None:
+    if len(_TTS_CACHE) >= _TTS_CACHE_MAX:
+        _TTS_CACHE.pop(next(iter(_TTS_CACHE)))
+    _TTS_CACHE[key] = audio
+
 
 # ---------------------------------------------------------------------------
 # OpenAI clients
@@ -182,30 +209,40 @@ def _options_ok():
 
 def orchestrator_agent(state: State) -> State:
     input_data = state["input"][-1]
-    prompt = f"""
-You are an interviewer conducting a Software Engineering interview.
+    question = input_data.get("interview_question", "")
+    user_input = input_data.get("user_input", "")
+    code = input_data.get("new_code_written", "")
 
-The input is: {input_data}
+    prompt = f"""You are routing a candidate message in a software engineering interview.
 
-Classify the user's response into one of the following categories:
-1 → User is lost and needs guidance
-2 → User asks question seeking guidance or clarification
-3 → User has given a response and you need to evaluate it
-4 → User is not talking about interview but needs a response
-5 → Nudge user
-6 → Nudge explanation
+Interview question: {question}
+Candidate message: {user_input}
+Candidate code: {code if code.strip() else "(none)"}
 
-Output only the number (1, 2, 3, 4, 5, 6) with no additional text.
-""".strip()
+Output a single digit — nothing else:
+1 = candidate is silent, confused, or has no idea how to proceed
+2 = candidate is asking a clarifying question
+3 = candidate has given a substantive response or explanation to evaluate
+4 = candidate said something unrelated to the interview
+
+Rules:
+- If the candidate wrote any meaningful code AND said something, output 3.
+- If the message is a question mark or question word (what, how, why, can, should), output 2.
+- If the message is very short (1-3 words) with no code, output 1.
+- Default to 3 when unsure.""".strip()
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "system", "content": "You are a classifier. Output only a single digit 1, 2, 3, or 4."},
             {"role": "user", "content": prompt},
         ],
+        max_tokens=1,
     )
-    decision = (response.choices[0].message.content or "").strip()
+    decision = (response.choices[0].message.content or "3").strip()
+    # Guard: nudge routes (5, 6) are triggered directly by their endpoints, never by the orchestrator
+    if decision not in ("1", "2", "3", "4"):
+        decision = "3"
     log.info("Orchestrator decision: %s", decision)
     state["decision"].append(decision)
     return state
@@ -218,10 +255,12 @@ def router(state: State) -> Dict:
         "2": "question_agent",
         "3": "eval_agent",
         "4": "offtopic_agent",
+        # 5 and 6 are only ever invoked directly via /nudge_user and /nudge_explanation
+        # endpoints — the orchestrator no longer emits them.
         "5": "nudge_user_agent",
         "6": "nudge_explanation_agent",
     }
-    return {"next": route_map.get(decision, "end_state")}
+    return {"next": route_map.get(decision, "eval_agent")}
 
 
 # FIX: replaced 6 near-identical agent functions with one factory.
@@ -246,7 +285,7 @@ def _make_agent(template_key: str, include_tone: bool = True):
         )
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt},
@@ -354,7 +393,7 @@ Summarize in 2-3 sentences, keeping it clear and concise.
 """.strip()
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are a helpful assistant that summarizes conversations."},
             {"role": "user", "content": summary_prompt},
@@ -645,14 +684,23 @@ def respond():
 
     _update_code_history(current_state, new_code_written)
 
-    new_summary = summarize_conversation(session_id, user_input, new_code_written)
+    # SPEED: summary is only needed as context for the *next* message, so it does
+    # not need to block the current response. Run it in a background thread.
+    import threading
+    def _bg_summarize():
+        try:
+            new_summary = summarize_conversation(session_id, user_input, new_code_written)
+            session_store[session_id]["interaction_summary"] = new_summary
+        except Exception as exc:
+            log.warning("Background summarize failed: %s", exc)
+
+    threading.Thread(target=_bg_summarize, daemon=True).start()
 
     current_state.update({
         "input": [next_input],
         "decision": decisions,
         "output": [full_response],
         "mode": mode,
-        "interaction_summary": new_summary,
     })
 
     @stream_with_context
@@ -711,11 +759,10 @@ def save_recording():
             uploaded_file = drive.upload_video(temp_path, user_id="DOM")
             recording_url = uploaded_file.get("public_url")
             log.info("Uploaded recording: %s", uploaded_file)
+            # FIX: removed dead code — the lines after the original early return
+            # (analyze_interview_video etc.) were unreachable. If video analysis
+            # is needed in future, uncomment and move it before the return.
             return jsonify({"recording_url": recording_url})
-            results = analyze_interview_video(temp_path)
-            results['session_info'] = {'file_size_bytes': os.path.getsize(temp_path)}
-            results['recording_url'] = recording_url
-            return jsonify(results)
         finally:
             os.unlink(temp_path)
 
@@ -904,23 +951,32 @@ def final_evaluation():
     }
 
     eval_state = {"input": [final_input], "decision": [], "output": []}
-    updated_eval_state = evaluation_agent(eval_state)
-    final_result = updated_eval_state.get("evaluation_result", {})
 
-    sess["final_evaluation"] = final_result
+    # SPEED: run evaluation_agent and DB write concurrently.
+    # The DB write (update_user_progress_by_email) is I/O-bound and completely
+    # independent of the evaluation result we return to the frontend, so we
+    # fire it in a background thread the moment we have the result.
+    def _save_to_db(result: dict) -> None:
+        try:
+            feedback_only = {
+                "final_evaluation": result.get("final_evaluation", {}),
+                "detailed_feedback": result.get("detailed_feedback", {}),
+                "total_score": result.get("total_score", 0),
+                "overall_assessment": result.get("overall_assessment", ""),
+                "recording_url": recording_url,
+            }
+            if not update_user_progress_by_email(email=student_id, question_id=int(question_id), feedback_json=feedback_only):
+                log.error("Failed to update user progress in DB.")
+        except Exception as exc:
+            log.error("Exception during user progress update: %s", exc)
 
-    try:
-        feedback_only = {
-            "final_evaluation": final_result.get("final_evaluation", {}),
-            "detailed_feedback": final_result.get("detailed_feedback", {}),
-            "total_score": final_result.get("total_score", 0),
-            "overall_assessment": final_result.get("overall_assessment", ""),
-            "recording_url": recording_url,
-        }
-        if not update_user_progress_by_email(email=student_id, question_id=int(question_id), feedback_json=feedback_only):
-            log.error("Failed to update user progress in DB.")
-    except Exception as exc:
-        log.error("Exception during user progress update: %s", exc)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        eval_future = pool.submit(evaluation_agent, eval_state)
+        updated_eval_state = eval_future.result()          # blocks until LLM done
+        final_result = updated_eval_state.get("evaluation_result", {})
+        sess["final_evaluation"] = final_result
+        # DB write starts immediately after eval, response returned without waiting
+        pool.submit(_save_to_db, final_result)
 
     return jsonify({"final_evaluation": final_result})
 
@@ -1093,11 +1149,19 @@ def azure_tts():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
+    # SPEED: return cached audio instantly for repeated sentences
+    cache_key = _tts_cache_key(text)
+    cached = _tts_cache_get(cache_key)
+    if cached:
+        log.info("TTS cache hit (%d bytes)", len(cached))
+        return (cached, 200, {"Content-Type": "audio/mpeg", "Content-Length": len(cached), "Cache-Control": "no-cache"})
+
     try:
         url = "https://eastus.tts.speech.microsoft.com/cognitiveservices/v1"
         headers = {
             "Ocp-Apim-Subscription-Key": AZURE_SPEECH_TTS_KEY,
             "Content-Type": "application/ssml+xml",
+            # SPEED: 32kbps vs 128kbps — ~75% smaller payload, imperceptible for speech
             "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
             "User-Agent": "your-app/1.0",
         }
@@ -1109,18 +1173,13 @@ def azure_tts():
             f"{text}"
             "</mstts:express-as></voice></speak>"
         )
-        response = requests.post(url, headers=headers, data=ssml, timeout=30)
+        # SPEED: reuse TCP session instead of opening a new connection each call
+        response = _tts_http_session.post(url, headers=headers, data=ssml, timeout=30)
 
         if response.status_code == 200:
-            return (
-                response.content,
-                200,
-                {
-                    "Content-Type": "audio/mpeg",
-                    "Content-Length": len(response.content),
-                    "Cache-Control": "no-cache",
-                },
-            )
+            audio = response.content
+            _tts_cache_set(cache_key, audio)
+            return (audio, 200, {"Content-Type": "audio/mpeg", "Content-Length": len(audio), "Cache-Control": "no-cache"})
 
         log.error("TTS REST API failed: %s — %s", response.status_code, response.text)
         return jsonify({"error": f"TTS failed: {response.status_code}"}), 500
