@@ -8,9 +8,6 @@ import pickle
 import tempfile
 import datetime
 import subprocess
-import hashlib
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache
 
 import jwt
 import requests
@@ -64,30 +61,6 @@ if not SECRET_KEY:
 
 ALLOWED_ORIGIN = "https://mango-bush-0c99ac700.6.azurestaticapps.net"
 SCOPES = ["https://www.googleapis.com/auth/drive"]
-
-# ---------------------------------------------------------------------------
-# TTS: persistent HTTP session (reuses TCP connection) + in-memory audio cache.
-# Identical sentences (greetings, common phrases) are synthesised only once.
-# Max 256 entries; evicts oldest when full.
-# ---------------------------------------------------------------------------
-_tts_http_session = requests.Session()
-_TTS_CACHE: dict = {}
-_TTS_CACHE_MAX = 256
-
-
-def _tts_cache_key(text: str) -> str:
-    return hashlib.sha256(text.strip().lower().encode()).hexdigest()
-
-
-def _tts_cache_get(key: str):
-    return _TTS_CACHE.get(key)
-
-
-def _tts_cache_set(key: str, audio: bytes) -> None:
-    if len(_TTS_CACHE) >= _TTS_CACHE_MAX:
-        _TTS_CACHE.pop(next(iter(_TTS_CACHE)))
-    _TTS_CACHE[key] = audio
-
 
 # ---------------------------------------------------------------------------
 # OpenAI clients
@@ -738,10 +711,11 @@ def save_recording():
             uploaded_file = drive.upload_video(temp_path, user_id="DOM")
             recording_url = uploaded_file.get("public_url")
             log.info("Uploaded recording: %s", uploaded_file)
-            # FIX: removed dead code — the lines after the original early return
-            # (analyze_interview_video etc.) were unreachable. If video analysis
-            # is needed in future, uncomment and move it before the return.
             return jsonify({"recording_url": recording_url})
+            results = analyze_interview_video(temp_path)
+            results['session_info'] = {'file_size_bytes': os.path.getsize(temp_path)}
+            results['recording_url'] = recording_url
+            return jsonify(results)
         finally:
             os.unlink(temp_path)
 
@@ -930,32 +904,23 @@ def final_evaluation():
     }
 
     eval_state = {"input": [final_input], "decision": [], "output": []}
+    updated_eval_state = evaluation_agent(eval_state)
+    final_result = updated_eval_state.get("evaluation_result", {})
 
-    # SPEED: run evaluation_agent and DB write concurrently.
-    # The DB write (update_user_progress_by_email) is I/O-bound and completely
-    # independent of the evaluation result we return to the frontend, so we
-    # fire it in a background thread the moment we have the result.
-    def _save_to_db(result: dict) -> None:
-        try:
-            feedback_only = {
-                "final_evaluation": result.get("final_evaluation", {}),
-                "detailed_feedback": result.get("detailed_feedback", {}),
-                "total_score": result.get("total_score", 0),
-                "overall_assessment": result.get("overall_assessment", ""),
-                "recording_url": recording_url,
-            }
-            if not update_user_progress_by_email(email=student_id, question_id=int(question_id), feedback_json=feedback_only):
-                log.error("Failed to update user progress in DB.")
-        except Exception as exc:
-            log.error("Exception during user progress update: %s", exc)
+    sess["final_evaluation"] = final_result
 
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        eval_future = pool.submit(evaluation_agent, eval_state)
-        updated_eval_state = eval_future.result()          # blocks until LLM done
-        final_result = updated_eval_state.get("evaluation_result", {})
-        sess["final_evaluation"] = final_result
-        # DB write starts immediately after eval, response returned without waiting
-        pool.submit(_save_to_db, final_result)
+    try:
+        feedback_only = {
+            "final_evaluation": final_result.get("final_evaluation", {}),
+            "detailed_feedback": final_result.get("detailed_feedback", {}),
+            "total_score": final_result.get("total_score", 0),
+            "overall_assessment": final_result.get("overall_assessment", ""),
+            "recording_url": recording_url,
+        }
+        if not update_user_progress_by_email(email=student_id, question_id=int(question_id), feedback_json=feedback_only):
+            log.error("Failed to update user progress in DB.")
+    except Exception as exc:
+        log.error("Exception during user progress update: %s", exc)
 
     return jsonify({"final_evaluation": final_result})
 
@@ -1128,20 +1093,12 @@ def azure_tts():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    # SPEED: return cached audio instantly for repeated sentences
-    cache_key = _tts_cache_key(text)
-    cached = _tts_cache_get(cache_key)
-    if cached:
-        log.info("TTS cache hit (%d bytes)", len(cached))
-        return (cached, 200, {"Content-Type": "audio/mpeg", "Content-Length": len(cached), "Cache-Control": "no-cache"})
-
     try:
         url = "https://eastus.tts.speech.microsoft.com/cognitiveservices/v1"
         headers = {
             "Ocp-Apim-Subscription-Key": AZURE_SPEECH_TTS_KEY,
             "Content-Type": "application/ssml+xml",
-            # SPEED: 32kbps vs 128kbps — ~75% smaller payload, imperceptible for speech
-            "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
+            "X-Microsoft-OutputFormat": "audio-16khz-128kbitrate-mono-mp3",
             "User-Agent": "your-app/1.0",
         }
         ssml = (
@@ -1152,13 +1109,18 @@ def azure_tts():
             f"{text}"
             "</mstts:express-as></voice></speak>"
         )
-        # SPEED: reuse TCP session instead of opening a new connection each call
-        response = _tts_http_session.post(url, headers=headers, data=ssml, timeout=30)
+        response = requests.post(url, headers=headers, data=ssml, timeout=30)
 
         if response.status_code == 200:
-            audio = response.content
-            _tts_cache_set(cache_key, audio)
-            return (audio, 200, {"Content-Type": "audio/mpeg", "Content-Length": len(audio), "Cache-Control": "no-cache"})
+            return (
+                response.content,
+                200,
+                {
+                    "Content-Type": "audio/mpeg",
+                    "Content-Length": len(response.content),
+                    "Cache-Control": "no-cache",
+                },
+            )
 
         log.error("TTS REST API failed: %s — %s", response.status_code, response.text)
         return jsonify({"error": f"TTS failed: {response.status_code}"}), 500
