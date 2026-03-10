@@ -161,7 +161,7 @@ Return VALID JSON ONLY — no markdown, no extra keys:
     for attempt in range(2):
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You classify SOLO level and output valid JSON only."},
                     {"role": "user", "content": prompt},
