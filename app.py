@@ -213,34 +213,30 @@ def orchestrator_agent(state: State) -> State:
     user_input = input_data.get("user_input", "")
     code = input_data.get("new_code_written", "")
 
-    prompt = f"""You are routing a candidate message in a software engineering interview.
-
-Interview question: {question}
-Candidate message: {user_input}
-Candidate code: {code if code.strip() else "(none)"}
-
-Output a single digit — nothing else:
-1 = candidate is silent, confused, or has no idea how to proceed
-2 = candidate is asking a clarifying question
-3 = candidate has given a substantive response or explanation to evaluate
-4 = candidate said something unrelated to the interview
-
-Rules:
-- If the candidate wrote any meaningful code AND said something, output 3.
-- If the message is a question mark or question word (what, how, why, can, should), output 2.
-- If the message is very short (1-3 words) with no code, output 1.
-- Default to 3 when unsure.""".strip()
+    # NOTE: prompt phrasing deliberately avoids instruction-override language
+    # that triggers Azure content filters (jailbreak false-positives).
+    prompt = (
+        f"You are observing a software engineering interview.\n\n"
+        f"The interview question is: {question}\n"
+        f"The candidate just said: {user_input}\n"
+        f"The candidate's current code: {code if code.strip() else '(no code written)'}\n\n"
+        f"Categorise the candidate's message into exactly one of these:\n"
+        f"1 — the candidate is stuck or silent and has not made progress\n"
+        f"2 — the candidate is asking a question about the problem\n"
+        f"3 — the candidate has given a response or explanation worth evaluating\n"
+        f"4 — the candidate said something unrelated to the interview\n\n"
+        f"Respond with a single digit only. No explanation."
+    )
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are a classifier. Output only a single digit 1, 2, 3, or 4."},
+            {"role": "system", "content": "You categorise interview messages. Respond with a single digit: 1, 2, 3, or 4."},
             {"role": "user", "content": prompt},
         ],
         max_tokens=1,
     )
     decision = (response.choices[0].message.content or "3").strip()
-    # Guard: nudge routes (5, 6) are triggered directly by their endpoints, never by the orchestrator
     if decision not in ("1", "2", "3", "4"):
         decision = "3"
     log.info("Orchestrator decision: %s", decision)
@@ -752,21 +748,24 @@ def save_recording():
         session_id = request.form.get("session_id", "")
         student_id = request.form.get("student_id", "")
 
-        drive = get_drive_service()
-
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
             for chunk in video_file.stream:
                 tmp.write(chunk)
             temp_path = tmp.name
 
         try:
-            # 1. Upload to Drive
+            # 1. Upload to Google Drive
+            drive = get_drive_service()
             uploaded_file = drive.upload_video(temp_path, user_id=student_id or "unknown")
             recording_url = uploaded_file.get("public_url", "")
-            log.info("Uploaded recording: %s", uploaded_file)
+            log.info("Uploaded recording to Google Drive: %s", recording_url)
 
-            # 2. Run video analysis
-            analysis = analyze_interview_video(temp_path)
+            # 2. Run video analysis (non-fatal if deps missing)
+            try:
+                analysis = analyze_interview_video(temp_path)
+            except Exception as exc:
+                log.warning("Video analysis failed (non-fatal): %s", exc)
+                analysis = {"detected_habits": [], "coaching_feedback": [], "summary_stats": {}}
             analysis["recording_url"] = recording_url
 
             # 3. Persist recording_url + analysis into session store so

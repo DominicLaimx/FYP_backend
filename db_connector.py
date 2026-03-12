@@ -14,7 +14,7 @@ DB_CONFIG = {
     "user": "aiview",
     "password": "#PRASAD SHUBHANGAM RAJESH#123",
     "database": "ai_interview",
-    "ssl_disabled": False  # 👈 Required for Azure
+    "ssl_disabled": False
 }
 
 from mysql.connector import pooling
@@ -31,6 +31,7 @@ def get_db_pool():
         )
         print("db_pool None")
     return db_pool
+
 def initialise_db_pool():
     pool = get_db_pool()
     return "success"
@@ -40,14 +41,8 @@ AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 
 def get_upload_url(filename: str):
     """Generate a short-lived SAS URL for the frontend to upload directly."""
-    print("-"*10)
-    print("-"*10)
-    print(f"constr: {AZURE_STORAGE_CONNECTION_STRING}")
-    print("-"*10)
-    print("-"*10)
     blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
     account_name = blob_service_client.account_name
-
     account_key = blob_service_client.credential.account_key
 
     sas_token = generate_blob_sas(
@@ -56,13 +51,13 @@ def get_upload_url(filename: str):
         blob_name=filename,
         permission=BlobSasPermissions(write=True, create=True),
         expiry=datetime.utcnow() + timedelta(minutes=30),
-        account_key=account_key,  
+        account_key=account_key,
     )
 
     blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filename)
     upload_url = f"{blob_client.url}?{sas_token}"
-
     return {"upload_url": upload_url}
+
 
 def get_random_question(question_type):
     """Fetch a random interview question from the MySQL database."""
@@ -70,23 +65,20 @@ def get_random_question(question_type):
         pool = get_db_pool()
         conn = pool.get_connection()
         cursor = conn.cursor(dictionary=True)
-        
-        query = """SELECT id, title, summary, leetcode_link, difficulty,category 
-                      FROM questions WHERE question_type = %s ORDER BY RAND() LIMIT 1;"""
+        query = """SELECT id, title, summary, leetcode_link, difficulty, category
+                   FROM questions WHERE question_type = %s ORDER BY RAND() LIMIT 1;"""
         cursor.execute(query, (question_type,))
         question = cursor.fetchone()
-        
         cursor.close()
         conn.close()
-        
         return question if question else None
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
         return None
 
+
 def get_all_questions():
     """Fetch all questions from the database."""
-
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -96,27 +88,30 @@ def get_all_questions():
     conn.close()
     return questions
 
+
 def get_all_summaries(question_type):
     """Fetch all summaries from the database."""
-
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
-    query = """SELECT id, title, summary, leetcode_link, difficulty,category FROM questions 
-                   WHERE question_type = %s ORDER BY difficulty,title
-                   """
+    query = """SELECT id, title, summary, leetcode_link, difficulty, category
+               FROM questions WHERE question_type = %s ORDER BY difficulty, title"""
     cursor.execute(query, (question_type,))
     summaries = cursor.fetchall()
     cursor.close()
     conn.close()
     return summaries
 
+
 def get_question_by_id(question_id):
     """Fetch a specific question by ID."""
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, question_text, example, reservations, difficulty FROM questions WHERE id = %s", (question_id,))
+    cursor.execute(
+        "SELECT id, question_text, example, reservations, difficulty FROM questions WHERE id = %s",
+        (question_id,)
+    )
     question = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -125,134 +120,21 @@ def get_question_by_id(question_id):
 
 def check_password(input_password, stored_hashed_password):
     """Check if the input password matches the stored hashed password."""
-    return bcrypt.checkpw(input_password.encode('utf-8'), stored_hashed_password.encode('utf-8'))
+    return bcrypt.checkpw(input_password.encode("utf-8"), stored_hashed_password.encode("utf-8"))
+
 
 def get_user(email, password):
     """Retrieve user by email and verify password securely."""
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
-
-    # Fetch user details (only email and hashed password)
     cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
-
     cursor.close()
     conn.close()
-
-    # If user exists, verify password
     if user and check_password(password, user["password"]):
-        return user  # Return user details if password is correct
+        return user
 
-def get_user_feedback_history(user_id: str):
-    """Returns all feedback history for a given user ID."""
-    try:
-        pool = get_db_pool()
-        conn = pool.get_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        cursor.execute("""
-            SELECT 
-                f.question_id,
-                q.question_text,
-                f.final_evaluation,
-                f.detailed_feedback
-            FROM evaluations f
-            JOIN questions q ON f.question_id = q.id
-            WHERE f.student_id = %s
-            ORDER BY f.timestamp DESC
-        """, (user_id,))
-
-        rows = cursor.fetchall()
-
-        feedback_entries = []
-        for row in rows:
-            feedback_entries.append({
-                "question_id": row["question_id"],
-                "question_text": row["question_text"],
-                "final_evaluation": json.loads(row["final_evaluation"]),
-                "detailed_feedback": json.loads(row["detailed_feedback"])
-            })
-
-        return feedback_entries
-
-    except Exception as e:
-        print(f"❌ Error in get_user_feedback_history: {e}")
-        return []
-    finally:
-        cursor.close()
-        conn.close()
-
-
-# write a genaAI fucntion that will help summarise each question into less than 5 words to be used as a title for the question
-# the function will take in the question and return a summary of the question
-
-# Initialize Azure OpenAI client
-client = AzureOpenAI(
-  azure_endpoint=os.getenv("OPENAI_ENDPOINT"), 
-  api_key=os.getenv("OPENAI_SECRETKEY"),  
-  api_version="2024-02-01"
-)
-
-def ensure_summary_column():
-    """Ensure the 'summary' column exists in the 'questions' table."""
-    pool = get_db_pool()
-    conn = pool.get_connection()
-    cursor = conn.cursor()
-    
-    # Add summary column if it doesn't exist
-    cursor.execute("""
-        ALTER TABLE questions 
-        ADD COLUMN summary VARCHAR(255) DEFAULT NULL;
-    """)
-    
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-def generate_summary(question_text):
-    """Generate a short summary of a question using OpenAI's GPT model."""
-    prompt = f"This is the question: '{question_text}'. Provide a concise summary in less than 5 words."
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    return response.choices[0].message.content.strip()
-
-def update_question_summaries():
-    """Fetch questions, generate summaries, and update the database."""
-    ensure_summary_column()
-    
-    pool = get_db_pool()
-    conn = pool.get_connection()
-    cursor = conn.cursor()
-
-    questions = get_all_questions()
-
-    for question in questions:
-        question_id = question["id"]
-        question_text = question["question_text"]
-        
-        # Generate summary
-        summary = generate_summary(question_text)
-        
-        # Update database with summary
-        cursor.execute("""
-            UPDATE questions 
-            SET summary = %s 
-            WHERE id = %s
-        """, (summary, question_id))
-        
-        print(f"Updated Question ID {question_id}: {summary}")
-
-    conn.commit()
-    cursor.close()
-    conn.close()
 
 def get_user_feedback_history(user_id: str):
     """Returns all feedback history for a given user ID by reading from the users table."""
@@ -261,42 +143,44 @@ def get_user_feedback_history(user_id: str):
         conn = pool.get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Step 1: Fetch user's questions_completed and past_feedback
-        cursor.execute("SELECT questions_completed, past_feedback FROM users WHERE id = %s", (user_id,))
+        cursor.execute(
+            "SELECT questions_completed, past_feedback FROM users WHERE id = %s",
+            (user_id,)
+        )
         user_data = cursor.fetchone()
 
         if not user_data:
-            print(f"❌ No user found with ID {user_id}")
+            print(f"No user found with ID {user_id}")
             return []
 
-        # Step 2: Parse the stored JSON safely
+        # Parse questions_completed
         completed_ids = []
         if user_data["questions_completed"]:
             try:
                 completed_ids = json.loads(user_data["questions_completed"])
             except Exception as e:
-                print("⚠️ Failed to parse questions_completed:", e)
+                print("Failed to parse questions_completed:", e)
 
+        # Parse past_feedback
         feedback_map = {}
         if user_data["past_feedback"]:
             try:
                 feedback_map = json.loads(user_data["past_feedback"])
             except Exception as e:
-                print("⚠️ Failed to parse past_feedback:", e)
+                print("Failed to parse past_feedback:", e)
 
         if not completed_ids:
             return []
 
-        # Step 3: Fetch corresponding questions from DB
-        format_strings = ','.join(['%s'] * len(completed_ids))
-        cursor.execute(f"""
-            SELECT id, question_text FROM questions 
-            WHERE id IN ({format_strings})
-        """, tuple(completed_ids))
-
+        # Fetch question texts
+        format_strings = ",".join(["%s"] * len(completed_ids))
+        cursor.execute(
+            f"SELECT id, question_text FROM questions WHERE id IN ({format_strings})",
+            tuple(completed_ids)
+        )
         question_map = {row["id"]: row["question_text"] for row in cursor.fetchall()}
 
-        # Step 4: Build final feedback list
+        # Build feedback list — include recording_url and video_analysis
         feedback_entries = []
         for qid in completed_ids:
             if str(qid) in feedback_map:
@@ -306,41 +190,97 @@ def get_user_feedback_history(user_id: str):
                     "question_text": question_map.get(qid, "Unknown Question"),
                     "final_evaluation": entry.get("final_evaluation", {}),
                     "detailed_feedback": entry.get("detailed_feedback", {}),
-
                     "total_score": entry.get("total_score"),
-
                     "overall_assessment": entry.get("overall_assessment"),
-
                     "hire_likelihood_percent": entry.get("hire_likelihood_percent"),
+                    # Populated by save_recording or final_evaluation
+                    "recording_url": entry.get("recording_url", ""),
+                    "video_analysis": entry.get("video_analysis", {}),
                 })
 
         return feedback_entries
 
     except Exception as e:
-        print(f"❌ Error in get_user_feedback_history: {e}")
+        print(f"Error in get_user_feedback_history: {e}")
         return []
     finally:
         cursor.close()
         conn.close()
 
+
+# ---------------------------------------------------------------------------
+# Azure OpenAI client (used for question summary generation only)
+# ---------------------------------------------------------------------------
+client = AzureOpenAI(
+    azure_endpoint=os.getenv("OPENAI_ENDPOINT"),
+    api_key=os.getenv("OPENAI_SECRETKEY"),
+    api_version="2024-02-01",
+)
+
+
+def ensure_summary_column():
+    """Ensure the summary column exists in the questions table."""
+    pool = get_db_pool()
+    conn = pool.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("ALTER TABLE questions ADD COLUMN summary VARCHAR(255) DEFAULT NULL;")
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def generate_summary(question_text):
+    """Generate a short summary of a question using GPT."""
+    prompt = f"This is the question: '{question_text}'. Provide a concise summary in less than 5 words."
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
+def update_question_summaries():
+    """Fetch questions, generate summaries, and update the database."""
+    ensure_summary_column()
+    pool = get_db_pool()
+    conn = pool.get_connection()
+    cursor = conn.cursor()
+    questions = get_all_questions()
+    for question in questions:
+        summary = generate_summary(question["question_text"])
+        cursor.execute(
+            "UPDATE questions SET summary = %s WHERE id = %s",
+            (summary, question["id"])
+        )
+        print(f"Updated Question ID {question['id']}: {summary}")
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
 def update_user_progress_by_email(email: str, question_id: int, feedback_json: dict):
     """
     Update the user's questions_completed and past_feedback by email.
+    Merges new feedback with any existing entry for the same question so that
+    recording_url saved by save_recording is not overwritten by final_evaluation.
     """
-    import json
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Fetch user by email
-        cursor.execute("SELECT questions_completed, past_feedback FROM users WHERE email = %s", (email,))
+        cursor.execute(
+            "SELECT questions_completed, past_feedback FROM users WHERE email = %s",
+            (email,)
+        )
         user = cursor.fetchone()
-
         if not user:
             raise Exception("User not found")
 
-        # --- SAFELY PARSE 'questions_completed' ---
+        # Parse questions_completed
         raw_q = user["questions_completed"]
         if isinstance(raw_q, str):
             try:
@@ -356,11 +296,10 @@ def update_user_progress_by_email(email: str, question_id: int, feedback_json: d
         else:
             current_questions = list(raw_q) if isinstance(raw_q, list) else []
 
-        # Avoid duplicates
         if question_id not in current_questions:
             current_questions.append(question_id)
 
-        # --- SAFELY PARSE 'past_feedback' ---
+        # Parse past_feedback
         raw_fb = user["past_feedback"]
         if isinstance(raw_fb, str):
             try:
@@ -372,43 +311,49 @@ def update_user_progress_by_email(email: str, question_id: int, feedback_json: d
         else:
             current_feedback = {}
 
-        current_feedback[str(question_id)] = feedback_json
+        # Merge: preserve fields from existing entry that aren't in the new payload
+        # This means save_recording (which sets recording_url) won't be clobbered
+        # by a subsequent final_evaluation call that doesn't include recording_url,
+        # and vice versa.
+        existing = current_feedback.get(str(question_id), {})
+        merged = {**existing, **feedback_json}
+        # Explicitly preserve recording_url and video_analysis if new payload omits them
+        for preserve_key in ("recording_url", "video_analysis"):
+            if not feedback_json.get(preserve_key) and existing.get(preserve_key):
+                merged[preserve_key] = existing[preserve_key]
 
-        # --- Write updates back ---
-        cursor.execute("""
-            UPDATE users 
-            SET questions_completed = %s, past_feedback = %s 
-            WHERE email = %s
-        """, (json.dumps(current_questions), json.dumps(current_feedback), email))
+        current_feedback[str(question_id)] = merged
 
+        cursor.execute(
+            "UPDATE users SET questions_completed = %s, past_feedback = %s WHERE email = %s",
+            (json.dumps(current_questions), json.dumps(current_feedback), email)
+        )
         conn.commit()
         return True
 
     except Exception as e:
-        print(f"❌ Error updating user progress: {e}")
+        print(f"Error updating user progress: {e}")
         return False
-
     finally:
         cursor.close()
         conn.close()
 
+
 def delete_history_by_email(email: str, question_id: int):
-    """
-    delete a past interview by the user given their email.
-    """
-    import json
+    """Delete a past interview entry for a user given their email."""
     pool = get_db_pool()
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
-    try:
-    # Fetch user by email
-        cursor.execute("SELECT questions_completed, past_feedback FROM users WHERE email = %s", (email,))
-        user = cursor.fetchone()
 
+    try:
+        cursor.execute(
+            "SELECT questions_completed, past_feedback FROM users WHERE email = %s",
+            (email,)
+        )
+        user = cursor.fetchone()
         if not user:
             raise Exception("User not found")
 
-        # --- SAFELY PARSE 'questions_completed' ---
         raw_q = user["questions_completed"]
         if isinstance(raw_q, str):
             try:
@@ -424,7 +369,6 @@ def delete_history_by_email(email: str, question_id: int):
         else:
             current_questions = list(raw_q) if isinstance(raw_q, list) else []
 
-        # Avoid duplicates
         if question_id in current_questions:
             current_questions.remove(question_id)
 
@@ -441,20 +385,16 @@ def delete_history_by_email(email: str, question_id: int):
 
         current_feedback.pop(str(question_id), None)
 
-        # --- Write updates back ---
-        cursor.execute("""
-            UPDATE users 
-            SET questions_completed = %s, past_feedback = %s 
-            WHERE email = %s
-        """, (json.dumps(current_questions), json.dumps(current_feedback), email))
-
+        cursor.execute(
+            "UPDATE users SET questions_completed = %s, past_feedback = %s WHERE email = %s",
+            (json.dumps(current_questions), json.dumps(current_feedback), email)
+        )
         conn.commit()
         return True
 
     except Exception as e:
-        print(f"❌ Error updating user progress: {e}")
+        print(f"Error deleting history: {e}")
         return False
-
     finally:
         cursor.close()
         conn.close()
