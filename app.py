@@ -980,10 +980,10 @@ def final_evaluation():
     session_id = data.get("session_id")
     student_id = data.get("student_id")
     question_id = data.get("question_id")
-    recording_url = data.get("recording_url", "")
-    # Fall back to the URL stored by save_recording if frontend didn't pass it
-    if not recording_url and session_id in session_store:
-        recording_url = session_store.get(session_id, {}).get("recording_url", "")
+    # recording_url = data.get("recording_url", "")
+    # # Fall back to the URL stored by save_recording if frontend didn't pass it
+    # if not recording_url and session_id in session_store:
+    #     recording_url = session_store.get(session_id, {}).get("recording_url", "")
 
     log.info("final_evaluation session_id=%s", session_id)
 
@@ -999,7 +999,7 @@ def final_evaluation():
     final_input = {
         "student_id": student_id,
         "question_id": str(question_id),
-        "recording_url": str(recording_url),
+        # "recording_url": str(recording_url),
         "interview_question": sess["input"][0]["interview_question"],
         "active_requirements": sess["input"][0]["interview_question"],
         "summary_of_past_response": sess.get("interaction_summary", ""),
@@ -1024,7 +1024,7 @@ def final_evaluation():
                 "detailed_feedback": result.get("detailed_feedback", {}),
                 "total_score": result.get("total_score", 0),
                 "overall_assessment": result.get("overall_assessment", ""),
-                "recording_url": recording_url,
+                # "recording_url": recording_url,
             }
             if not update_user_progress_by_email(email=student_id, question_id=int(question_id), feedback_json=feedback_only):
                 log.error("Failed to update user progress in DB.")
