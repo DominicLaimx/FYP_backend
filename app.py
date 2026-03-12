@@ -273,29 +273,41 @@ def _make_agent(template_key: str, include_tone: bool = True):
         tone_part = ""
         if include_tone:
             tone = state.get("tone", "")
-            tone_part = f"Tone_instructions:{tone} "
+            tone_part = f"Tone adjustment: {tone}. " if tone else ""
 
         prompt = (
-            f"This is the summary of what the user has done and said in the interview "
-            f"thus far '{input_data}'.{tone_part}{templates[template_key]}"
+            f"Interview context — candidate activity so far: {input_data}. "
+            f"{tone_part}"
+            f"{templates[template_key]}"
         )
 
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt},
-            ],
-            stream=True,
-        )
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are a professional software engineering interviewer conducting a technical interview."},
+                    {"role": "user", "content": prompt},
+                ],
+                stream=True,
+            )
 
-        response_text = ""
-        for chunk in response:
-            if not chunk.choices or not chunk.choices[0].delta:
-                continue
-            piece = chunk.choices[0].delta.content
-            if piece:
-                response_text += piece
+            response_text = ""
+            for chunk in response:
+                if not chunk.choices or not chunk.choices[0].delta:
+                    continue
+                piece = chunk.choices[0].delta.content
+                if piece:
+                    response_text += piece
+
+        except Exception as exc:
+            # Azure content filter false-positive: return a neutral fallback
+            # so the session continues rather than crashing with a 500.
+            err_str = str(exc)
+            if "content_filter" in err_str or "ResponsibleAI" in err_str:
+                log.warning("Content filter triggered on %s — using fallback response", template_key)
+                response_text = "Could you walk me through your current thinking on this problem?"
+            else:
+                raise
 
         state["output"] = [response_text]
         return state
