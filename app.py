@@ -748,6 +748,10 @@ def save_recording():
         if not video_file:
             return jsonify({"error": "No video file"}), 400
 
+        # Accept session_id + student_id so we can update the DB directly
+        session_id = request.form.get("session_id", "")
+        student_id = request.form.get("student_id", "")
+
         drive = get_drive_service()
 
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
@@ -756,13 +760,56 @@ def save_recording():
             temp_path = tmp.name
 
         try:
-            uploaded_file = drive.upload_video(temp_path, user_id="DOM")
-            recording_url = uploaded_file.get("public_url")
+            # 1. Upload to Drive
+            uploaded_file = drive.upload_video(temp_path, user_id=student_id or "unknown")
+            recording_url = uploaded_file.get("public_url", "")
             log.info("Uploaded recording: %s", uploaded_file)
-            # FIX: removed dead code — the lines after the original early return
-            # (analyze_interview_video etc.) were unreachable. If video analysis
-            # is needed in future, uncomment and move it before the return.
-            return jsonify({"recording_url": recording_url})
+
+            # 2. Run video analysis
+            analysis = analyze_interview_video(temp_path)
+            analysis["recording_url"] = recording_url
+
+            # 3. Persist recording_url + analysis into session store so
+            #    final_evaluation can pick it up even if called before this returns
+            if session_id and session_id in session_store:
+                session_store[session_id]["recording_url"] = recording_url
+                session_store[session_id]["video_analysis"] = analysis
+
+            # 4. Update DB in background — merge with any existing feedback already saved
+            def _save_recording_to_db():
+                try:
+                    if not session_id or not student_id:
+                        return
+                    sess = session_store.get(session_id, {})
+                    question_id = sess.get("question_id")
+                    if not question_id:
+                        return
+                    # Merge recording_url and analysis into whatever feedback is already stored
+                    existing_eval = sess.get("final_evaluation", {})
+                    feedback = {
+                        "final_evaluation": existing_eval.get("final_evaluation", {}),
+                        "detailed_feedback": existing_eval.get("detailed_feedback", {}),
+                        "total_score": existing_eval.get("total_score", 0),
+                        "overall_assessment": existing_eval.get("overall_assessment", ""),
+                        "recording_url": recording_url,
+                        "video_analysis": analysis,
+                    }
+                    if not update_user_progress_by_email(
+                        email=student_id,
+                        question_id=int(question_id),
+                        feedback_json=feedback,
+                    ):
+                        log.error("save_recording: failed to update DB for %s q%s", student_id, question_id)
+                except Exception as exc:
+                    log.error("save_recording DB write failed: %s", exc)
+
+            import threading
+            threading.Thread(target=_save_recording_to_db, daemon=True).start()
+
+            return jsonify({
+                "recording_url": recording_url,
+                "video_analysis": analysis,
+            })
         finally:
             os.unlink(temp_path)
 
@@ -923,6 +970,9 @@ def final_evaluation():
     student_id = data.get("student_id")
     question_id = data.get("question_id")
     recording_url = data.get("recording_url", "")
+    # Fall back to the URL stored by save_recording if frontend didn't pass it
+    if not recording_url and session_id in session_store:
+        recording_url = session_store.get(session_id, {}).get("recording_url", "")
 
     log.info("final_evaluation session_id=%s", session_id)
 
