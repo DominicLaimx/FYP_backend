@@ -65,11 +65,6 @@ if not SECRET_KEY:
 ALLOWED_ORIGIN = "https://mango-bush-0c99ac700.6.azurestaticapps.net"
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
-# ---------------------------------------------------------------------------
-# TTS: persistent HTTP session (reuses TCP connection) + in-memory audio cache.
-# Identical sentences (greetings, common phrases) are synthesised only once.
-# Max 256 entries; evicts oldest when full.
-# ---------------------------------------------------------------------------
 _tts_http_session = requests.Session()
 _TTS_CACHE: dict = {}
 _TTS_CACHE_MAX = 256
@@ -92,10 +87,6 @@ def _tts_cache_set(key: str, audio: bytes) -> None:
 # ---------------------------------------------------------------------------
 # OpenAI clients
 # ---------------------------------------------------------------------------
-# FIX: reuse a single client instead of creating 4 near-identical ones.
-# The api_version for each call can be passed per-request when needed;
-# for whisper and realtime we keep separate clients only because the
-# api_version is genuinely different.
 
 client = AzureOpenAI(
     azure_endpoint=ENDPOINT,
@@ -526,7 +517,6 @@ class DriveService:
         return fh.getvalue()
 
 
-# Lazily instantiated so startup doesn't fail when token is absent in dev.
 _drive_service: DriveService | None = None
 
 
@@ -682,7 +672,7 @@ def respond():
         "tone": tone,
     }
 
-    # Run model before streaming so state is committed first.
+    
     full_response, decisions = _invoke_graph(next_input, mode)
 
     if user_input.strip():
@@ -692,8 +682,7 @@ def respond():
 
     _update_code_history(current_state, new_code_written)
 
-    # SPEED: summary is only needed as context for the *next* message, so it does
-    # not need to block the current response. Run it in a background thread.
+    
     import threading
     def _bg_summarize():
         try:
@@ -765,14 +754,43 @@ def save_recording():
                 tmp.write(chunk)
             temp_path = tmp.name
 
+        mp4_path = None
         try:
-            # 1. Upload to Google Drive
+            
+            mp4_path = temp_path.replace(".webm", ".mp4")
+            try:
+                ffmpeg_result = subprocess.run(
+                    [
+                        "ffmpeg", "-y",
+                        "-i", temp_path,
+                        "-c:v", "libx264", "-preset", "fast", "-crf", "28",
+                        "-c:a", "aac", "-b:a", "64k",
+                        mp4_path,
+                    ],
+                    capture_output=True,
+                    timeout=180,
+                )
+                if ffmpeg_result.returncode != 0:
+                    log.warning("ffmpeg failed (returncode %s), falling back to webm: %s",
+                                ffmpeg_result.returncode, ffmpeg_result.stderr.decode())
+                    mp4_path = None
+                else:
+                    original_mb = os.path.getsize(temp_path) / 1_048_576
+                    mp4_mb = os.path.getsize(mp4_path) / 1_048_576
+                    log.info("ffmpeg converted %.1fMB webm → %.1fMB mp4", original_mb, mp4_mb)
+            except Exception as exc:
+                log.warning("ffmpeg conversion failed (non-fatal): %s", exc)
+                mp4_path = None
+
+            upload_path = mp4_path if mp4_path else temp_path
+
+            
             drive = get_drive_service()
-            uploaded_file = drive.upload_video(temp_path, user_id=student_id or "unknown")
+            uploaded_file = drive.upload_video(upload_path, user_id=student_id or "unknown")
             recording_url = uploaded_file.get("public_url", "")
             log.info("Uploaded recording to Google Drive: %s", recording_url)
 
-            # 2. Run video analysis (non-fatal if deps missing)
+            
             try:
                 analysis = analyze_interview_video(temp_path)
             except Exception as exc:
@@ -780,13 +798,10 @@ def save_recording():
                 analysis = {"detected_habits": [], "coaching_feedback": [], "summary_stats": {}}
             analysis["recording_url"] = recording_url
 
-            # 3. Persist recording_url + analysis into session store so
-            #    final_evaluation can pick it up even if called before this returns
             if session_id and session_id in session_store:
                 session_store[session_id]["recording_url"] = recording_url
                 session_store[session_id]["video_analysis"] = analysis
 
-            # 4. Update DB in background — merge with any existing feedback already saved
             def _save_recording_to_db():
                 try:
                     if not session_id or not student_id:
@@ -795,7 +810,6 @@ def save_recording():
                     question_id = sess.get("question_id")
                     if not question_id:
                         return
-                    # Merge recording_url and analysis into whatever feedback is already stored
                     existing_eval = sess.get("final_evaluation", {})
                     feedback = {
                         "final_evaluation": existing_eval.get("final_evaluation", {}),
@@ -823,6 +837,8 @@ def save_recording():
             })
         finally:
             os.unlink(temp_path)
+            if mp4_path and os.path.exists(mp4_path):
+                os.unlink(mp4_path)
 
     except Exception as exc:
         log.error("save_recording error: %s", exc)
@@ -855,7 +871,6 @@ def get_random(question_type):
 
 @app.route("/login", methods=["POST", "OPTIONS"])
 def login():
-    # FIX: OPTIONS is handled by apply_cors; no need to duplicate headers here.
     if request.method == "OPTIONS":
         return _options_ok()
 
@@ -868,7 +883,6 @@ def login():
         if not user:
             return jsonify({"error": "Invalid credentials"}), 401
 
-        # FIX: datetime.utcnow() is deprecated in Python 3.12+
         expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
         token = jwt.encode(
             {"user_id": user["id"], "email": user["email"], "exp": expiry},
@@ -980,10 +994,10 @@ def final_evaluation():
     session_id = data.get("session_id")
     student_id = data.get("student_id")
     question_id = data.get("question_id")
-    # recording_url = data.get("recording_url", "")
-    # # Fall back to the URL stored by save_recording if frontend didn't pass it
-    # if not recording_url and session_id in session_store:
-    #     recording_url = session_store.get(session_id, {}).get("recording_url", "")
+    recording_url = data.get("recording_url", "")
+    # Fall back to the URL stored by save_recording if frontend didn't pass it
+    if not recording_url and session_id in session_store:
+        recording_url = session_store.get(session_id, {}).get("recording_url", "")
 
     log.info("final_evaluation session_id=%s", session_id)
 
@@ -999,24 +1013,20 @@ def final_evaluation():
     final_input = {
         "student_id": student_id,
         "question_id": str(question_id),
-        # "recording_url": str(recording_url),
+        "recording_url": str(recording_url),
         "interview_question": sess["input"][0]["interview_question"],
         "active_requirements": sess["input"][0]["interview_question"],
         "summary_of_past_response": sess.get("interaction_summary", ""),
         "user_input": sess["input"][-1].get("user_input", ""),
         "new_code_written": final_code,
         "candidate_code": final_code,
-        "transcript": sess.get("transcript", []),
+        "transcript": sess.get("transcript", [])[-20:],  # cap at last 20 turns — earlier turns are already in interaction_summary
         "candidate_code_history_tail": sess.get("code_history", [])[-8:],
         "partial_eval_history": sess.get("partial_eval_history", []),
     }
 
     eval_state = {"input": [final_input], "decision": [], "output": []}
 
-    # SPEED: run evaluation_agent and DB write concurrently.
-    # The DB write (update_user_progress_by_email) is I/O-bound and completely
-    # independent of the evaluation result we return to the frontend, so we
-    # fire it in a background thread the moment we have the result.
     def _save_to_db(result: dict) -> None:
         try:
             feedback_only = {
@@ -1024,7 +1034,7 @@ def final_evaluation():
                 "detailed_feedback": result.get("detailed_feedback", {}),
                 "total_score": result.get("total_score", 0),
                 "overall_assessment": result.get("overall_assessment", ""),
-                # "recording_url": recording_url,
+                "recording_url": recording_url,
             }
             if not update_user_progress_by_email(email=student_id, question_id=int(question_id), feedback_json=feedback_only):
                 log.error("Failed to update user progress in DB.")
@@ -1033,10 +1043,9 @@ def final_evaluation():
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         eval_future = pool.submit(evaluation_agent, eval_state)
-        updated_eval_state = eval_future.result()          # blocks until LLM done
+        updated_eval_state = eval_future.result()          
         final_result = updated_eval_state.get("evaluation_result", {})
         sess["final_evaluation"] = final_result
-        # DB write starts immediately after eval, response returned without waiting
         pool.submit(_save_to_db, final_result)
 
     return jsonify({"final_evaluation": final_result})
@@ -1104,8 +1113,6 @@ def delete_history():
     return jsonify({"res": "success"})
 
 
-# FIX: /run_code used hardcoded shared filenames → race condition under concurrency.
-# Now uses tempfile.mkstemp() for unique per-request files.
 _LANG_CONFIG = {
     "python": {"suffix": ".py", "run": lambda p, _: ["python3", p]},
     "c":      {"suffix": ".c",  "compile": lambda p, e: ["gcc", p, "-o", e], "run": lambda _, e: [e]},
@@ -1148,7 +1155,7 @@ def run_code():
                 config["compile"](src_path, exe_path),
                 capture_output=True, text=True, timeout=15,
             )
-            # FIX: original code ignored compile errors — now we surface them.
+            
             if compile_result.returncode != 0:
                 return jsonify({"res": compile_result.stderr.strip() or "Compilation failed."}), 200
             extra_files.append(exe_path)
@@ -1194,7 +1201,6 @@ def transcribe_audio():
         return jsonify({"error": str(exc)}), 500
 
 
-# FIX: /test endpoint was leaking the TTS secret key in plaintext — removed.
 @app.route("/test")
 def test():
     return "It works on Azure!"
@@ -1210,7 +1216,6 @@ def azure_tts():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    # SPEED: return cached audio instantly for repeated sentences
     cache_key = _tts_cache_key(text)
     cached = _tts_cache_get(cache_key)
     if cached:
@@ -1222,7 +1227,7 @@ def azure_tts():
         headers = {
             "Ocp-Apim-Subscription-Key": AZURE_SPEECH_TTS_KEY,
             "Content-Type": "application/ssml+xml",
-            # SPEED: 32kbps vs 128kbps — ~75% smaller payload, imperceptible for speech
+            
             "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
             "User-Agent": "your-app/1.0",
         }
@@ -1231,10 +1236,12 @@ def azure_tts():
             "xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'>"
             "<voice name='en-US-AvaMultilingualNeural'>"
             "<mstts:express-as style='newscast-formal'>"
+            "<prosody rate='15%'>"
             f"{text}"
+            "</prosody>"
             "</mstts:express-as></voice></speak>"
         )
-        # SPEED: reuse TCP session instead of opening a new connection each call
+        
         response = _tts_http_session.post(url, headers=headers, data=ssml, timeout=30)
 
         if response.status_code == 200:
