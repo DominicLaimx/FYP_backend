@@ -1236,7 +1236,7 @@ def azure_tts():
             "xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'>"
             "<voice name='en-US-AvaMultilingualNeural'>"
             "<mstts:express-as style='newscast-formal'>"
-            "<prosody rate='15%'>"
+            "<prosody rate='10%'>"
             f"{text}"
             "</prosody>"
             "</mstts:express-as></voice></speak>"
