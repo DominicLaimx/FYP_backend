@@ -205,10 +205,24 @@ def evaluation_agent(state: dict) -> dict:
         else input_data.get("new_code_written", "")
     )
 
+    # Count how much signal we actually have
+    transcript_turns = len([t for t in input_data.get("transcript", []) if t.get("role") == "user"])
+    has_code = bool(code_context.strip())
+
     eval_prompt = f"""
-You are an AI evaluation agent for a coding interview.
-For each category include:
-- evidence: 1–3 short verbatim quotes from the candidate's explanation or code.
+You are a strict AI evaluation agent for a coding interview.
+
+CRITICAL RULES — these override everything else:
+1. Evidence must be VERBATIM quotes from the transcript or code provided below.
+   If you cannot find a real quote, set evidence to an empty array [].
+   Do NOT invent, paraphrase, or infer quotes.
+2. The candidate had {transcript_turns} turns and {"submitted code" if has_code else "submitted NO code"}.
+   If the candidate had fewer than 3 turns or submitted no code, scores must reflect that:
+   - communication score 0–3 for fewer than 3 turns
+   - code_implementation score 0 if no code was submitted
+   - problem_solving score 0–3 if no approach was explained
+3. Score what actually happened. Do not assume or give benefit of the doubt.
+   A short session with minimal interaction is a poor performance — score it as such.
 
 Output VALID JSON ONLY — no markdown, no extra keys.
 
@@ -232,27 +246,21 @@ Schema:
   }}
 }}
 
-RULES:
-- Scores are integers 0–10.
-- Justifications must cite the candidate's actual response or code.
-- examples_of_what_went_well: 2–3 specific strengths.
-- areas_to_improve: 2–3 specific development areas.
-- Do NOT include total_score or overall_assessment.
-
 Context:
 - Student ID: {input_data["student_id"]}
 - Question ID: {input_data["question_id"]}
 - Interview Question: {input_data["interview_question"]}
+- Candidate turns: {transcript_turns}
 - Full Transcript:
 {transcript_text}
 - Code History:
 {code_context}
 
 Scoring Guidelines:
-COMMUNICATION:    9-10 clear+structured, 7-8 articulate, 5-6 understandable, 3-4 minimal, 0-2 incoherent
-PROBLEM SOLVING:  9-10 optimal+edge cases, 7-8 good decomposition, 5-6 basic working, 3-4 flawed, 0-2 none
+COMMUNICATION:    9-10 clear+structured, 7-8 articulate, 5-6 understandable, 3-4 minimal, 0-2 silent/incoherent
+PROBLEM SOLVING:  9-10 optimal+edge cases, 7-8 good decomposition, 5-6 basic working, 3-4 flawed, 0-2 no attempt
 TECHNICAL:        9-10 deep understanding, 7-8 solid fundamentals, 5-6 partial, 3-4 gaps, 0-2 lacks basics
-CODE IMPL:        9-10 production quality, 7-8 readable, 5-6 works/needs refactor, 3-4 poor, 0-2 buggy
+CODE IMPL:        9-10 production quality, 7-8 readable, 5-6 works/needs refactor, 3-4 poor, 0-2 none/buggy
 
 Return ONLY the JSON object.
 """.strip()
