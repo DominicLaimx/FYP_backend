@@ -481,7 +481,19 @@ class NervousHabitDetector:
 
         reported_fps = cap.get(cv2.CAP_PROP_FPS)
         fps = 30.0 if reported_fps <= 0 or reported_fps > 60 else reported_fps
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # CAP_PROP_FRAME_COUNT is unreliable for .webm — often returns 0 or -1.
+        # Fall back to duration-based estimate using CAP_PROP_POS_AVI_RATIO.
+        raw_frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if raw_frame_count <= 0:
+            # Seek to end to get duration, then rewind
+            cap.set(cv2.CAP_PROP_POS_AVI_RATIO, 1)
+            duration_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            total_frames = int((duration_ms / 1000.0) * fps) if duration_ms > 0 else int(fps * 600)
+        else:
+            total_frames = raw_frame_count
+
         video_duration = total_frames / fps if fps > 0 else 0.0
 
         MAX_ANALYSIS_FRAMES = 300
@@ -525,7 +537,8 @@ class NervousHabitDetector:
         prev_gaze = None
 
         last_eye_dart = -999.0
-        last_look_away = -999.0   # FIX: cooldown to prevent duplicate look-away events
+        last_look_away = -999.0   # cooldown to prevent duplicate look-away events
+        last_hand_event = -999.0  # cooldown to prevent duplicate hand movement events
         looking_away_start = None
 
         events: List[Dict] = []
@@ -618,13 +631,14 @@ class NervousHabitDetector:
                             motion = float(np.linalg.norm(current_pos - self.last_hand_pos))
                             hand_motion_buffer.append(motion)
                             if len(hand_motion_buffer) == hand_motion_buffer.maxlen:
-                                if float(np.mean(hand_motion_buffer)) > 0.02:
+                                if float(np.mean(hand_motion_buffer)) > 0.02 and timestamp - last_hand_event > 5:
                                     events.append({
                                         "type": "excessive_hand_movement",
                                         "start": timestamp - 1,
-                                        "end": timestamp,
+                                        "end": timestamp + 1,
                                         "intensity": float(np.mean(hand_motion_buffer)),
                                     })
+                                    last_hand_event = timestamp
 
                         self.last_hand_pos = current_pos
 
@@ -662,14 +676,10 @@ class NervousHabitDetector:
         }
 
 
-# Module-level singleton — instantiated once, reused across requests.
-_detector = NervousHabitDetector()
-
-
 def analyze_interview_video(video_path: str) -> Dict:
-    """Public entry point. Delegates to the module-level singleton."""
+    """Public entry point. Creates a fresh detector per call — thread-safe."""
     try:
-        return _detector.analyze_video(video_path)
+        return NervousHabitDetector().analyze_video(video_path)
     except Exception as exc:
         log.error("analyze_interview_video failed: %s", exc)
         return {
