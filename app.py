@@ -751,48 +751,54 @@ def save_recording():
     if request.method == "OPTIONS":
         return _options_ok()
 
+    video_file = request.files.get("video")
+    if not video_file:
+        return jsonify({"error": "No video file"}), 400
+
+    session_id       = request.form.get("session_id", "")
+    student_id       = request.form.get("student_id", "")
+    question_id_form = request.form.get("question_id", "")
+
+    # ── Write video to disk first (this is what was timing out) ──────────────
+    # We read the entire stream here, in the request thread, before returning.
+    # Everything else (ffmpeg, Drive upload, analysis, DB) runs in a background
+    # thread so gunicorn gets the response back well within its timeout.
     try:
-        video_file = request.files.get("video")
-        if not video_file:
-            return jsonify({"error": "No video file"}), 400
-
-        # Accept session_id, student_id, question_id from form data directly
-        # so the DB write works even if the session_store has been recycled
-        session_id  = request.form.get("session_id", "")
-        student_id  = request.form.get("student_id", "")
-        question_id_form = request.form.get("question_id", "")
-
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
-            for chunk in video_file.stream:
+            # Read in 1 MB chunks to avoid one giant allocation
+            chunk_size = 1024 * 1024
+            while True:
+                chunk = video_file.stream.read(chunk_size)
+                if not chunk:
+                    break
                 tmp.write(chunk)
             temp_path = tmp.name
+        log.info("save_recording: wrote %.1f MB to %s", os.path.getsize(temp_path) / 1_048_576, temp_path)
+    except Exception as exc:
+        log.error("save_recording: failed to write video to disk: %s", exc)
+        return jsonify({"error": "Failed to receive video file"}), 500
 
+    # ── All heavy work runs in background — return 202 immediately ───────────
+    def _process_and_save():
         mp4_path = None
         try:
-            # 1. Convert webm → MP4 (H.264) before uploading.
-            #    MP4 is ~5-10x smaller than raw webm, cutting upload time and
-            #    Google Drive processing time dramatically.
+            # 1. Convert webm → MP4 — much smaller, faster to upload, plays in Drive
             mp4_path = temp_path.replace(".webm", ".mp4")
             try:
                 ffmpeg_result = subprocess.run(
-                    [
-                        "ffmpeg", "-y",
-                        "-i", temp_path,
-                        "-c:v", "libx264", "-preset", "fast", "-crf", "28",
-                        "-c:a", "aac", "-b:a", "64k",
-                        mp4_path,
-                    ],
-                    capture_output=True,
-                    timeout=180,
+                    ["ffmpeg", "-y", "-i", temp_path,
+                     "-c:v", "libx264", "-preset", "fast", "-crf", "28",
+                     "-c:a", "aac", "-b:a", "64k", mp4_path],
+                    capture_output=True, timeout=240,
                 )
                 if ffmpeg_result.returncode != 0:
-                    log.warning("ffmpeg failed (returncode %s), falling back to webm: %s",
+                    log.warning("ffmpeg failed (rc=%s), using webm: %s",
                                 ffmpeg_result.returncode, ffmpeg_result.stderr.decode())
                     mp4_path = None
                 else:
-                    original_mb = os.path.getsize(temp_path) / 1_048_576
-                    mp4_mb = os.path.getsize(mp4_path) / 1_048_576
-                    log.info("ffmpeg converted %.1fMB webm → %.1fMB mp4", original_mb, mp4_mb)
+                    log.info("ffmpeg: %.1fMB → %.1fMB",
+                             os.path.getsize(temp_path) / 1_048_576,
+                             os.path.getsize(mp4_path) / 1_048_576)
             except Exception as exc:
                 log.warning("ffmpeg conversion failed (non-fatal): %s", exc)
                 mp4_path = None
@@ -803,9 +809,9 @@ def save_recording():
             drive = get_drive_service()
             uploaded_file = drive.upload_video(upload_path, user_id=student_id or "unknown")
             recording_url = uploaded_file.get("public_url", "")
-            log.info("Uploaded recording to Google Drive: %s", recording_url)
+            log.info("Uploaded to Google Drive: %s", recording_url)
 
-            # 3. Run video analysis on original webm (non-fatal if deps missing)
+            # 3. Video analysis (non-fatal)
             try:
                 analysis = analyze_interview_video(temp_path)
             except Exception as exc:
@@ -813,60 +819,56 @@ def save_recording():
                 analysis = {"detected_habits": [], "coaching_feedback": [], "summary_stats": {}}
             analysis["recording_url"] = recording_url
 
-            # 3. Persist recording_url + analysis into session store so
-            #    final_evaluation can pick it up even if called before this returns
+            # 4. Store in session if still alive
             if session_id and session_id in session_store:
                 session_store[session_id]["recording_url"] = recording_url
                 session_store[session_id]["video_analysis"] = analysis
 
-            # 4. Update DB in background — merge with any existing feedback already saved
-            def _save_recording_to_db():
-                try:
-                    if not student_id:
-                        log.warning("save_recording DB write skipped: no student_id")
-                        return
-                    # Prefer question_id passed directly from frontend;
-                    # fall back to session_store in case it's still in memory
-                    sess = session_store.get(session_id, {})
-                    question_id = question_id_form or sess.get("question_id")
-                    if not question_id:
-                        log.warning("save_recording DB write skipped: no question_id (session_id=%s)", session_id)
-                        return
-                    existing_eval = sess.get("final_evaluation", {})
-                    feedback = {
-                        "final_evaluation": existing_eval.get("final_evaluation", {}),
-                        "detailed_feedback": existing_eval.get("detailed_feedback", {}),
-                        "total_score": existing_eval.get("total_score", 0),
-                        "overall_assessment": existing_eval.get("overall_assessment", ""),
-                        "recording_url": recording_url,
-                        "video_analysis": analysis,
-                    }
-                    if not update_user_progress_by_email(
-                        email=student_id,
-                        question_id=int(question_id),
-                        feedback_json=feedback,
-                    ):
-                        log.error("save_recording: failed to update DB for %s q%s", student_id, question_id)
-                    else:
-                        log.info("save_recording: DB updated for %s q%s", student_id, question_id)
-                except Exception as exc:
-                    log.error("save_recording DB write failed: %s", exc)
-
-            import threading
-            threading.Thread(target=_save_recording_to_db, daemon=True).start()
-
-            return jsonify({
+            # 5. Write to DB
+            if not student_id:
+                log.warning("save_recording DB write skipped: no student_id")
+                return
+            sess = session_store.get(session_id, {})
+            question_id = question_id_form or sess.get("question_id")
+            if not question_id:
+                log.warning("save_recording DB write skipped: no question_id")
+                return
+            existing_eval = sess.get("final_evaluation", {})
+            feedback = {
+                "final_evaluation": existing_eval.get("final_evaluation", {}),
+                "detailed_feedback": existing_eval.get("detailed_feedback", {}),
+                "total_score": existing_eval.get("total_score", 0),
+                "overall_assessment": existing_eval.get("overall_assessment", ""),
                 "recording_url": recording_url,
                 "video_analysis": analysis,
-            })
-        finally:
-            os.unlink(temp_path)
-            if mp4_path and os.path.exists(mp4_path):
-                os.unlink(mp4_path)
+            }
+            if not update_user_progress_by_email(
+                email=student_id,
+                question_id=int(question_id),
+                feedback_json=feedback,
+            ):
+                log.error("save_recording: DB update failed for %s q%s", student_id, question_id)
+            else:
+                log.info("save_recording: DB updated for %s q%s", student_id, question_id)
 
-    except Exception as exc:
-        log.error("save_recording error: %s", exc)
-        return jsonify({"error": str(exc)}), 500
+        except Exception as exc:
+            log.error("save_recording background processing failed: %s", exc)
+        finally:
+            try:
+                os.unlink(temp_path)
+            except Exception:
+                pass
+            if mp4_path:
+                try:
+                    os.unlink(mp4_path)
+                except Exception:
+                    pass
+
+    import threading
+    threading.Thread(target=_process_and_save, daemon=True).start()
+
+    # Return immediately — frontend polls or proceeds without waiting
+    return jsonify({"status": "processing", "message": "Recording received. Processing in background."}), 202
 
 
 @app.route("/questions/<question_type>", methods=["GET", "OPTIONS"])
