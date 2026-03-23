@@ -65,11 +65,6 @@ if not SECRET_KEY:
 ALLOWED_ORIGIN = "https://mango-bush-0c99ac700.6.azurestaticapps.net"
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
-# ---------------------------------------------------------------------------
-# TTS: persistent HTTP session (reuses TCP connection) + in-memory audio cache.
-# Identical sentences (greetings, common phrases) are synthesised only once.
-# Max 256 entries; evicts oldest when full.
-# ---------------------------------------------------------------------------
 _tts_http_session = requests.Session()
 _TTS_CACHE: dict = {}
 _TTS_CACHE_MAX = 256
@@ -88,14 +83,6 @@ def _tts_cache_set(key: str, audio: bytes) -> None:
         _TTS_CACHE.pop(next(iter(_TTS_CACHE)))
     _TTS_CACHE[key] = audio
 
-
-# ---------------------------------------------------------------------------
-# OpenAI clients
-# ---------------------------------------------------------------------------
-# FIX: reuse a single client instead of creating 4 near-identical ones.
-# The api_version for each call can be passed per-request when needed;
-# for whisper and realtime we keep separate clients only because the
-# api_version is genuinely different.
 
 client = AzureOpenAI(
     azure_endpoint=ENDPOINT,
@@ -213,8 +200,6 @@ def orchestrator_agent(state: State) -> State:
     user_input = input_data.get("user_input", "")
     code = input_data.get("new_code_written", "")
 
-    # NOTE: prompt phrasing deliberately avoids instruction-override language
-    # that triggers Azure content filters (jailbreak false-positives).
     prompt = (
         f"You are observing a software engineering interview.\n\n"
         f"The interview question is: {question}\n"
@@ -251,15 +236,12 @@ def router(state: State) -> Dict:
         "2": "question_agent",
         "3": "eval_agent",
         "4": "offtopic_agent",
-        # 5 and 6 are only ever invoked directly via /nudge_user and /nudge_explanation
-        # endpoints — the orchestrator no longer emits them.
         "5": "nudge_user_agent",
         "6": "nudge_explanation_agent",
     }
     return {"next": route_map.get(decision, "eval_agent")}
 
 
-# FIX: replaced 6 near-identical agent functions with one factory.
 def _make_agent(template_key: str, include_tone: bool = True):
     """
     Returns a LangGraph node function for the given prompt template key.
@@ -300,8 +282,6 @@ def _make_agent(template_key: str, include_tone: bool = True):
                     response_text += piece
 
         except Exception as exc:
-            # Azure content filter false-positive: return a neutral fallback
-            # so the session continues rather than crashing with a 500.
             err_str = str(exc)
             if "content_filter" in err_str or "ResponsibleAI" in err_str:
                 log.warning("Content filter triggered on %s — using fallback response", template_key)
@@ -367,11 +347,6 @@ workflow.set_finish_point("end_state")
 
 app_graph = workflow.compile()
 
-# ---------------------------------------------------------------------------
-# In-memory session store
-# NOTE: This will not survive restarts or scale across multiple workers.
-# Consider replacing with Redis for production.
-# ---------------------------------------------------------------------------
 session_store: Dict[str, dict] = {}
 
 
@@ -526,7 +501,6 @@ class DriveService:
         return fh.getvalue()
 
 
-# Lazily instantiated so startup doesn't fail when token is absent in dev.
 _drive_service: DriveService | None = None
 
 
@@ -591,7 +565,6 @@ def start_interview():
     })
 
 
-# FIX: extracted shared nudge handler to eliminate duplicated route bodies.
 def _nudge_handler(session_id: str, code: str, user_input_label: str):
     """Shared logic for /nudge_user and /nudge_explanation."""
     if not session_id or session_id not in session_store:
@@ -682,7 +655,6 @@ def respond():
         "tone": tone,
     }
 
-    # Run model before streaming so state is committed first.
     full_response, decisions = _invoke_graph(next_input, mode)
 
     if user_input.strip():
@@ -692,8 +664,6 @@ def respond():
 
     _update_code_history(current_state, new_code_written)
 
-    # SPEED: summary is only needed as context for the *next* message, so it does
-    # not need to block the current response. Run it in a background thread.
     import threading
     def _bg_summarize():
         try:
@@ -759,13 +729,8 @@ def save_recording():
     student_id       = request.form.get("student_id", "")
     question_id_form = request.form.get("question_id", "")
 
-    # ── Write video to disk first (this is what was timing out) ──────────────
-    # We read the entire stream here, in the request thread, before returning.
-    # Everything else (ffmpeg, Drive upload, analysis, DB) runs in a background
-    # thread so gunicorn gets the response back well within its timeout.
     try:
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
-            # Read in 1 MB chunks to avoid one giant allocation
             chunk_size = 1024 * 1024
             while True:
                 chunk = video_file.stream.read(chunk_size)
@@ -778,11 +743,9 @@ def save_recording():
         log.error("save_recording: failed to write video to disk: %s", exc)
         return jsonify({"error": "Failed to receive video file"}), 500
 
-    # ── All heavy work runs in background — return 202 immediately ───────────
     def _process_and_save():
         mp4_path = None
         try:
-            # 1. Convert webm → MP4 — much smaller, faster to upload, plays in Drive
             mp4_path = temp_path.replace(".webm", ".mp4")
             try:
                 ffmpeg_result = subprocess.run(
@@ -805,13 +768,11 @@ def save_recording():
 
             upload_path = mp4_path if mp4_path else temp_path
 
-            # 2. Upload to Google Drive
             drive = get_drive_service()
             uploaded_file = drive.upload_video(upload_path, user_id=student_id or "unknown")
             recording_url = uploaded_file.get("public_url", "")
             log.info("Uploaded to Google Drive: %s", recording_url)
 
-            # 3. Video analysis (non-fatal)
             try:
                 analysis = analyze_interview_video(temp_path)
             except Exception as exc:
@@ -819,12 +780,10 @@ def save_recording():
                 analysis = {"detected_habits": [], "coaching_feedback": [], "summary_stats": {}}
             analysis["recording_url"] = recording_url
 
-            # 4. Store in session if still alive
             if session_id and session_id in session_store:
                 session_store[session_id]["recording_url"] = recording_url
                 session_store[session_id]["video_analysis"] = analysis
 
-            # 5. Write to DB
             if not student_id:
                 log.warning("save_recording DB write skipped: no student_id")
                 return
@@ -867,7 +826,6 @@ def save_recording():
     import threading
     threading.Thread(target=_process_and_save, daemon=True).start()
 
-    # Return immediately — frontend polls or proceeds without waiting
     return jsonify({"status": "processing", "message": "Recording received. Processing in background."}), 202
 
 
@@ -897,7 +855,6 @@ def get_random(question_type):
 
 @app.route("/login", methods=["POST", "OPTIONS"])
 def login():
-    # FIX: OPTIONS is handled by apply_cors; no need to duplicate headers here.
     if request.method == "OPTIONS":
         return _options_ok()
 
@@ -910,7 +867,6 @@ def login():
         if not user:
             return jsonify({"error": "Invalid credentials"}), 401
 
-        # FIX: datetime.utcnow() is deprecated in Python 3.12+
         expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
         token = jwt.encode(
             {"user_id": user["id"], "email": user["email"], "exp": expiry},
@@ -1029,14 +985,11 @@ def final_evaluation():
     if not student_id or not question_id:
         return jsonify({"error": "Missing student_id or question_id"}), 400
 
-    # session_store may have been wiped by a worker recycle on Azure.
-    # Build sess from whatever is available: live store → empty fallback.
     sess = session_store.get(session_id, {}) if session_id else {}
     if not sess:
         log.warning("final_evaluation: session_id=%s not in session_store (worker may have recycled). "
                     "Proceeding with frontend-supplied data only.", session_id)
 
-    # recording_url: frontend passes it if save_recording ran; fall back to session store
     if not recording_url:
         recording_url = sess.get("recording_url", "")
 
@@ -1069,8 +1022,6 @@ def final_evaluation():
                 "total_score": result.get("total_score", 0),
                 "overall_assessment": result.get("overall_assessment", ""),
                 "recording_url": recording_url,
-                # video_analysis is preserved by the merge logic in update_user_progress_by_email
-                # if save_recording already wrote it; no need to re-pass it here
             }
             if not update_user_progress_by_email(
                 email=student_id,
@@ -1156,8 +1107,6 @@ def delete_history():
     return jsonify({"res": "success"})
 
 
-# FIX: /run_code used hardcoded shared filenames → race condition under concurrency.
-# Now uses tempfile.mkstemp() for unique per-request files.
 _LANG_CONFIG = {
     "python": {"suffix": ".py", "run": lambda p, _: ["python3", p]},
     "c":      {"suffix": ".c",  "compile": lambda p, e: ["gcc", p, "-o", e], "run": lambda _, e: [e]},
@@ -1194,13 +1143,13 @@ def run_code():
         with os.fdopen(src_fd, "w") as fh:
             fh.write(code)
 
-        # Compile step (if needed)
+        
         if "compile" in config:
             compile_result = subprocess.run(
                 config["compile"](src_path, exe_path),
                 capture_output=True, text=True, timeout=15,
             )
-            # FIX: original code ignored compile errors — now we surface them.
+            
             if compile_result.returncode != 0:
                 return jsonify({"res": compile_result.stderr.strip() or "Compilation failed."}), 200
             extra_files.append(exe_path)
@@ -1246,7 +1195,6 @@ def transcribe_audio():
         return jsonify({"error": str(exc)}), 500
 
 
-# FIX: /test endpoint was leaking the TTS secret key in plaintext — removed.
 @app.route("/test")
 def test():
     return "It works on Azure!"
@@ -1262,7 +1210,6 @@ def azure_tts():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    # SPEED: return cached audio instantly for repeated sentences
     cache_key = _tts_cache_key(text)
     cached = _tts_cache_get(cache_key)
     if cached:
@@ -1274,7 +1221,6 @@ def azure_tts():
         headers = {
             "Ocp-Apim-Subscription-Key": AZURE_SPEECH_TTS_KEY,
             "Content-Type": "application/ssml+xml",
-            # SPEED: 32kbps vs 128kbps — ~75% smaller payload, imperceptible for speech
             "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
             "User-Agent": "your-app/1.0",
         }
@@ -1288,7 +1234,6 @@ def azure_tts():
             "</prosody>"
             "</mstts:express-as></voice></speak>"
         )
-        # SPEED: reuse TCP session instead of opening a new connection each call
         response = _tts_http_session.post(url, headers=headers, data=ssml, timeout=30)
 
         if response.status_code == 200:

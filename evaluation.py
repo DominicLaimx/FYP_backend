@@ -66,8 +66,6 @@ class EvaluationSchema(BaseModel):
     overall_assessment: str
 
 
-# FIX: separate Pydantic model for partial eval so it doesn't require score
-# fields that the prompt explicitly tells the model not to produce.
 class PartialCategoryFeedback(BaseModel):
     observation: str
     evidence: List[str]
@@ -191,7 +189,6 @@ def evaluation_agent(state: dict) -> dict:
     """
     input_data = state["input"][-1]
 
-    # Build richer context from transcript / code history when available
     transcript = input_data.get("transcript", [])
     transcript_text = (
         "\n".join(f"{m['role'].upper()}: {m['content']}" for m in transcript)
@@ -205,7 +202,6 @@ def evaluation_agent(state: dict) -> dict:
         else input_data.get("new_code_written", "")
     )
 
-    # Count how much signal we actually have
     transcript_turns = len([t for t in input_data.get("transcript", []) if t.get("role") == "user"])
     has_code = bool(code_context.strip())
 
@@ -265,7 +261,6 @@ CODE IMPL:        9-10 production quality, 7-8 readable, 5-6 works/needs refacto
 Return ONLY the JSON object.
 """.strip()
 
-    # Run solo_agent then main evaluation sequentially
     state = solo_agent(state)
 
     for attempt in range(2):
@@ -384,12 +379,6 @@ Return valid JSON only.
 
 # ---------------------------------------------------------------------------
 # Video analysis
-# FIX: NervousHabitDetector is now a module-level class (not re-created per call).
-# FIX: cv2, mediapipe, numpy imported at the top of the file.
-# FIX: _generate_coaching_feedback dead `coaching_map` set removed.
-# FIX: redundant manual touch_buffer eviction removed (deque maxlen handles it).
-# FIX: looking_away cooldown added to prevent duplicate events.
-# FIX: reset() method added for safe reuse of the module-level singleton.
 # ---------------------------------------------------------------------------
 
 class NervousHabitDetector:
@@ -545,8 +534,8 @@ class NervousHabitDetector:
         prev_gaze = None
 
         last_eye_dart = -999.0
-        last_look_away = -999.0   # cooldown to prevent duplicate look-away events
-        last_hand_event = -999.0  # cooldown to prevent duplicate hand movement events
+        last_look_away = -999.0   
+        last_hand_event = -999.0  
         looking_away_start = None
 
         events: List[Dict] = []
@@ -650,7 +639,6 @@ class NervousHabitDetector:
 
                         self.last_hand_pos = current_pos
 
-                        # FIX: deque maxlen handles eviction; manual while-loop removed.
                         if self._is_touching_face(hand_landmarks, face_landmarks, touch_threshold):
                             touch_buffer.append(timestamp)
 
